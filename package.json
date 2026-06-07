@@ -1,0 +1,24 @@
+{
+  "name": "snoopy",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "npm run assets:modern && vite",
+    "build": "npm run assets:modern && tsc && vite build",
+    "preview": "vite preview",
+    "assets:modern": "node scripts/process-modern-assets.mjs",
+    "docker:dev": "docker compose up --build app",
+    "docker:prod": "docker compose --profile prod up --build web",
+    "docker:build": "docker build --target prod -t snoopy-pet-game ."
+  },
+  "devDependencies": {
+    "typescript": "~6.0.2",
+    "vite": "^8.0.12"
+  },
+  "dependencies": {
+    "phaser": "^3.90.0",
+    "pngjs": "^7.0.0",
+    "sharp": "^0.34.5"
+  }
+}
