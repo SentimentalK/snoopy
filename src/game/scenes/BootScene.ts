@@ -62,17 +62,17 @@ export class BootScene extends Phaser.Scene {
 
   create(): void {
     for (const key of modernAmbientAnimations) {
-      this.createLoop(`ambient:${key}`);
+      this.createLoop(`ambient:${key}`, 5);
     }
 
-    this.createLoop('action:feed:run', 12);
+    this.createLoop('action:feed:run', 10);
     this.createLoop('action:feed:eat', 6);
-    this.createLoop('action:touch', 8);
+    this.createLoop('action:touch', 6);
 
     this.scene.start('PetScene');
   }
 
-  private createLoop(key: string, frameRate = 6): void {
+  private createLoop(key: string, frameRate: number): void {
     if (!this.textures.exists(key) || this.anims.exists(key)) return;
 
     this.anims.create({

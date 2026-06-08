@@ -4,11 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "npm run assets:modern && vite",
+    "dev": "vite",
     "build": "npm run assets:modern && tsc && vite build",
     "preview": "vite preview",
     "assets:modern": "node scripts/process-modern-assets.mjs",
-    "docker:dev": "docker compose up --build app",
+    "docker:dev": "docker compose up --build --force-recreate --exit-code-from assets assets && docker compose up --build app",
     "docker:prod": "docker compose --profile prod up --build web",
     "docker:build": "docker build --target prod -t snoopy-pet-game ."
   },

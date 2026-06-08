@@ -11,7 +11,8 @@ type RuntimeMode = 'ambient' | 'feeding' | 'touching';
 const PET_HOME = { x: 550, y: 690 };
 const PET_FEED_TARGET = { x: 780, y: 690 };
 const FOOD_POSITION = { x: 965, y: 685 };
-const FEED_BUTTON_POSITION = { x: 1170, y: 640 };
+const FEED_BUTTON_POSITION = { x: 1115, y: 640 };
+const PET_SCALE = 0.34;
 
 export class PetScene extends Phaser.Scene {
   private pet!: Phaser.GameObjects.Sprite;
@@ -44,7 +45,7 @@ export class PetScene extends Phaser.Scene {
   private createPet(): void {
     this.pet = this.add.sprite(PET_HOME.x, PET_HOME.y, 'ambient:happy', 0);
     this.pet.setOrigin(0.5, 1);
-    this.pet.setScale(0.62);
+    this.pet.setScale(PET_SCALE);
     this.pet.setDepth(20);
     this.pet.setInteractive({ useHandCursor: true });
     this.pet.on('pointerup', () => this.handlePetTouch());
@@ -53,7 +54,7 @@ export class PetScene extends Phaser.Scene {
   private createFood(): void {
     this.food = this.add.image(FOOD_POSITION.x, FOOD_POSITION.y, 'object:feed:food');
     this.food.setOrigin(0.5, 1);
-    this.food.setDisplaySize(280, 156);
+    this.food.setDisplaySize(230, 128);
     this.food.setDepth(12);
     this.food.setVisible(false);
   }
@@ -61,7 +62,7 @@ export class PetScene extends Phaser.Scene {
   private createFeedButton(): void {
     this.feedButton = this.add.sprite(FEED_BUTTON_POSITION.x, FEED_BUTTON_POSITION.y, 'ui:feed-button', 0);
     this.feedButton.setOrigin(0.5, 0.5);
-    this.feedButton.setScale(0.42);
+    this.feedButton.setScale(0.36);
     this.feedButton.setDepth(40);
     this.feedButton.setInteractive({ useHandCursor: true });
 
@@ -142,7 +143,7 @@ export class PetScene extends Phaser.Scene {
     this.food.setVisible(false);
     this.playPet('action:feed:eat');
 
-    this.time.delayedCall(3600, () => {
+    this.time.delayedCall(4200, () => {
       this.careState = this.careStore.feed();
       this.feedButton.setInteractive({ useHandCursor: true });
       this.enterAmbient('happy');
@@ -157,7 +158,7 @@ export class PetScene extends Phaser.Scene {
     this.feedButton.disableInteractive();
     this.playPet('action:touch');
 
-    this.time.delayedCall(2400, () => {
+    this.time.delayedCall(3200, () => {
       this.feedButton.setInteractive({ useHandCursor: true });
       this.enterAmbient('happy');
     });

@@ -21,6 +21,14 @@ The current minimum product is:
 - Render mode: normal antialiased illustration, not pixel art
 - Phaser scale mode: `FIT`
 
+The current background source is `2752 x 1536`, exactly `2x` the runtime canvas. It is resized to `1376 x 768` without aspect-ratio crop.
+
+Current visual scale target:
+
+- Snoopy runtime scale: `0.54`
+- Processed standing Snoopy visible height: roughly `330-340 px`
+- Doghouse should visually read as a large environment object behind Snoopy, not as a small prop
+
 ## Source Asset Protocol
 
 Raw assets live in `src/source`. The app does not load these files directly. They are processed into `public/assets` before dev/build.
@@ -63,6 +71,21 @@ Most animation source files use this format:
 - Background: white or near-white
 
 The asset processor removes only the edge-connected white background from each frame, preserving white areas inside Snoopy.
+
+After background removal, the processor also normalizes every animation frame to a shared visual baseline:
+
+- Visible content is re-centered horizontally inside its frame
+- Visible content bottom is aligned to `y = 719`
+- Visible content is scaled to the sheet's median frame height
+- This prevents Snoopy from bobbing up and down because of inconsistent AI frame placement
+  and also reduces one-frame size pops from AI-generated sheets
+
+Current runtime animation speeds:
+
+- Ambient animations: `3 fps`
+- Feed run: `7 fps`
+- Feed eat: `4 fps`
+- Touch: `4 fps`
 
 ### Button Sheet
 
@@ -115,14 +138,20 @@ Do not edit `generatedModernAssets.ts` by hand. It is recreated by `scripts/proc
 
 ## Build Flow
 
-Both dev and production builds process assets first:
+Local dev starts only the Vite server, so run assets explicitly when source art changes:
 
 ```bash
+npm run assets:modern
 npm run dev
+```
+
+Production builds process assets first:
+
+```bash
 npm run build
 ```
 
-Docker uses the same scripts:
+Docker dev runs assets in a one-shot service and waits for it to finish before starting Vite:
 
 ```bash
 npm run docker:dev
