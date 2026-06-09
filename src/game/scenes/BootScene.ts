@@ -5,6 +5,7 @@ import {
   MODERN_GRID_FRAMES,
   modernBackgrounds,
   modernFeedAssets,
+  modernFeatures,
   modernSnoopy,
   modernTouchAssets,
   modernUiAssets,
@@ -20,6 +21,7 @@ const snoopyActionPath = (group: string, key: string) => (
 );
 const feedPath = (key: string) => snoopyActionPath('feed', key);
 const touchPath = (key: string) => snoopyActionPath('touch', key);
+const getLetterAssets = () => modernFeatures.letter?.assets as Record<string, string> | undefined;
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -78,6 +80,25 @@ export class BootScene extends Phaser.Scene {
       });
     }
 
+    const letterAssets = getLetterAssets();
+    if (letterAssets?.letter) {
+      this.load.image('feature:letter:letter', letterAssets.letter);
+    }
+    if (letterAssets?.motion) {
+      this.load.spritesheet('feature:letter:motion', letterAssets.motion, {
+        frameWidth: MODERN_FRAME_WIDTH,
+        frameHeight: MODERN_FRAME_HEIGHT,
+      });
+    }
+    if (letterAssets?.content) {
+      this.load.image('feature:letter:content', letterAssets.content);
+    }
+    const letterAudio = Object.values(letterAssets ?? {})
+      .find((assetPath) => /\.(mp3|ogg|wav)$/i.test(assetPath));
+    if (letterAudio) {
+      this.load.audio('feature:letter:music', letterAudio);
+    }
+
     this.load.spritesheet('ui:feed-button', `/assets/ui/${modernUiAssets.feedButton}.png`, {
       frameWidth: MODERN_FRAME_WIDTH,
       frameHeight: MODERN_FRAME_HEIGHT,
@@ -103,6 +124,7 @@ export class BootScene extends Phaser.Scene {
     this.createLoop('action:feed:run', 10);
     this.createLoop('action:feed:eat', 6);
     this.createLoop('action:touch', 6);
+    this.createLoop('feature:letter:motion', 8);
 
     this.scene.start('PetScene');
   }

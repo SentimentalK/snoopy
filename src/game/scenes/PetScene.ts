@@ -6,7 +6,8 @@ import {
 } from '../data/generatedModernAssets';
 import { PetCareState, PetCareStore } from '../systems/PetCareStore';
 
-type RuntimeMode = 'ambient' | 'feeding' | 'touching';
+type RuntimeMode = 'ambient' | 'feeding' | 'touching' | 'letter';
+type LetterState = 'idle' | 'opening' | 'envelope' | 'content' | 'closing';
 
 const SNOOPY_AMBIENT_ANIMATIONS = modernSnoopy.ambientAnimations;
 const SNOOPY_AMBIENT_ANIMATION_GROUPS = modernSnoopy.ambientAnimationGroups;
@@ -47,6 +48,17 @@ const FOOD_DISPLAY_SIZE = { width: 230, height: 128 };
 const FEED_BUTTON_BASE_SCALE = 0.36;
 const FEED_BUTTON_MIN_SCALE = 0.22;
 const FEED_BUTTON_MARGIN = 12;
+const LETTER_PROMPT_MARGIN = 14;
+const LETTER_PROMPT_GAP = 2;
+const LETTER_PROMPT_MAX_SIZE = { width: 170, height: 132 };
+const LETTER_PROMPT_MIN_SIZE = { width: 116, height: 92 };
+const LETTER_OPEN_SIZE_RATIO = { width: 0.64, height: 0.7 };
+const LETTER_OPEN_TRAVEL_MS = 2200;
+const LETTER_CONTENT_SIZE_RATIO = { width: 0.97, height: 0.84 };
+const LETTER_CONTENT_Y_RATIO = 0.47;
+const LETTER_DANCE_X_RATIO = 0.72;
+const LETTER_DANCE_Y_RATIO = 0.86;
+const LETTER_DANCE_OUTRO_MS = 1200;
 
 type AmbientPlacement =
   | { kind: 'home' }
@@ -99,17 +111,24 @@ export class PetScene extends Phaser.Scene {
   private pet!: Phaser.GameObjects.Sprite;
   private food!: Phaser.GameObjects.Image;
   private feedButton!: Phaser.GameObjects.Sprite;
+  private letterPrompt?: Phaser.GameObjects.Sprite;
+  private letterBackdrop?: Phaser.GameObjects.Rectangle;
+  private letterContent?: Phaser.GameObjects.Image;
   private debugOverlay?: HTMLPreElement;
   private debugControls?: HTMLDivElement;
   private cameraDebugInfo = '';
   private currentAmbientKey?: string;
   private mode: RuntimeMode = 'ambient';
+  private letterState: LetterState = 'idle';
   private careStore = new PetCareStore();
   private careState!: PetCareState;
   private ambientTimer?: Phaser.Time.TimerEvent;
   private emotionTimer?: Phaser.Time.TimerEvent;
   private motionExitTimer?: Phaser.Time.TimerEvent;
   private motionTween?: Phaser.Tweens.Tween;
+  private letterWobbleTween?: Phaser.Tweens.Tween;
+  private letterMoveTween?: Phaser.Tweens.Tween;
+  private letterMusic?: Phaser.Sound.BaseSound;
   private ambientPlacementByKey = createAmbientPlacementMap();
 
   constructor() {
@@ -122,6 +141,7 @@ export class PetScene extends Phaser.Scene {
     this.createFood();
     this.createPet();
     this.createFeedButton();
+    this.createLetterFeature();
     this.configureCamera();
     this.createDebugToolsIfEnabled();
     this.enterAmbient();
@@ -184,6 +204,315 @@ export class PetScene extends Phaser.Scene {
     });
   }
 
+  private createLetterFeature(): void {
+    const promptTexture = this.textures.exists('feature:letter:letter')
+      ? 'feature:letter:letter'
+      : this.textures.exists('feature:letter:motion')
+        ? 'feature:letter:motion'
+        : undefined;
+    if (!promptTexture) return;
+
+    this.letterPrompt = this.add.sprite(0, 0, promptTexture, 0);
+    this.letterPrompt.setOrigin(0.5, 0.5);
+    this.letterPrompt.setScrollFactor(0);
+    this.letterPrompt.setDepth(45);
+    this.letterPrompt.setInteractive({ useHandCursor: true });
+    this.layoutLetterFeature();
+    this.startLetterPromptWobble();
+
+    this.letterPrompt.on('pointerup', () => this.handleLetterPromptClick());
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.stopLetterMusic();
+    });
+  }
+
+  private handleLetterPromptClick(): void {
+    if (this.letterState === 'idle') {
+      this.openLetterEnvelope();
+      return;
+    }
+
+    if (this.letterState === 'envelope') {
+      this.showLetterContent();
+    }
+  }
+
+  private layoutLetterFeature(): void {
+    if (this.letterState === 'content') {
+      this.layoutLetterContent();
+      return;
+    }
+
+    if (this.letterState !== 'idle') return;
+    this.positionLetterPrompt();
+  }
+
+  private positionLetterPrompt(): void {
+    if (!this.letterPrompt || !this.feedButton) return;
+
+    const viewportWidth = this.scale.width;
+    const viewportHeight = this.scale.height;
+    const sizeScale = Phaser.Math.Clamp(Math.min(viewportWidth, viewportHeight) / 900, 0, 1);
+    const targetWidth = Phaser.Math.Linear(
+      LETTER_PROMPT_MIN_SIZE.width,
+      LETTER_PROMPT_MAX_SIZE.width,
+      sizeScale,
+    );
+    const targetHeight = Phaser.Math.Linear(
+      LETTER_PROMPT_MIN_SIZE.height,
+      LETTER_PROMPT_MAX_SIZE.height,
+      sizeScale,
+    );
+    this.fitSpriteToBox(this.letterPrompt, targetWidth, targetHeight);
+
+    const x = this.feedButton.x;
+    const y = this.feedButton.y
+      - this.feedButton.displayHeight / 2
+      - this.letterPrompt.displayHeight / 2
+      - LETTER_PROMPT_GAP;
+
+    this.letterPrompt.setPosition(
+      x,
+      Phaser.Math.Clamp(y, this.letterPrompt.displayHeight / 2 + LETTER_PROMPT_MARGIN, viewportHeight),
+    );
+  }
+
+  private fitSpriteToBox(
+    sprite: Phaser.GameObjects.Sprite,
+    maxWidth: number,
+    maxHeight: number,
+  ): number {
+    const frameWidth = sprite.frame.width || MODERN_FRAME_WIDTH;
+    const frameHeight = sprite.frame.height || MODERN_FRAME_HEIGHT;
+    const scale = Math.min(maxWidth / frameWidth, maxHeight / frameHeight);
+    sprite.setScale(scale);
+    return scale;
+  }
+
+  private fitImageToBox(
+    image: Phaser.GameObjects.Image,
+    maxWidth: number,
+    maxHeight: number,
+  ): number {
+    const frameWidth = image.frame.width || WORLD_WIDTH;
+    const frameHeight = image.frame.height || WORLD_HEIGHT;
+    const scale = Math.min(maxWidth / frameWidth, maxHeight / frameHeight);
+    image.setScale(scale);
+    return scale;
+  }
+
+  private setLetterPromptTexturePreservingSize(texture: string): void {
+    if (!this.letterPrompt) return;
+
+    const displayWidth = this.letterPrompt.displayWidth;
+    const displayHeight = this.letterPrompt.displayHeight;
+    this.letterPrompt.setTexture(texture, 0);
+    this.fitSpriteToBox(this.letterPrompt, displayWidth, displayHeight);
+  }
+
+  private startLetterPromptWobble(angle = 15, duration = 620): void {
+    if (!this.letterPrompt) return;
+
+    this.letterWobbleTween?.stop();
+    this.letterPrompt.setAngle(-angle);
+    this.letterWobbleTween = this.tweens.add({
+      targets: this.letterPrompt,
+      angle,
+      duration,
+      ease: 'Sine.easeInOut',
+      yoyo: true,
+      repeat: -1,
+    });
+  }
+
+  private openLetterEnvelope(): void {
+    if (!this.letterPrompt || this.mode !== 'ambient') return;
+
+    this.mode = 'letter';
+    this.letterState = 'opening';
+    this.food.setVisible(false);
+    this.stopMotionAmbient();
+    this.ambientTimer?.remove(false);
+    this.emotionTimer?.remove(false);
+    this.feedButton.setFrame(0);
+    this.feedButton.disableInteractive();
+    this.letterWobbleTween?.stop();
+    this.letterMoveTween?.stop();
+
+    if (this.textures.exists('feature:letter:motion')) {
+      this.letterPrompt.setTexture('feature:letter:motion', 0);
+      this.letterPrompt.play('feature:letter:motion');
+    }
+
+    this.letterPrompt.setVisible(true);
+    this.letterPrompt.setDepth(50);
+    this.letterPrompt.setAngle(0);
+    this.letterPrompt.disableInteractive();
+
+    const viewportWidth = this.scale.width;
+    const viewportHeight = this.scale.height;
+    const targetScale = Math.min(
+      (viewportWidth * LETTER_OPEN_SIZE_RATIO.width) / (this.letterPrompt.frame.width || MODERN_FRAME_WIDTH),
+      (viewportHeight * LETTER_OPEN_SIZE_RATIO.height) / (this.letterPrompt.frame.height || MODERN_FRAME_HEIGHT),
+    );
+
+    this.letterMoveTween = this.tweens.add({
+      targets: this.letterPrompt,
+      x: viewportWidth / 2,
+      y: viewportHeight / 2,
+      scaleX: targetScale,
+      scaleY: targetScale,
+      duration: LETTER_OPEN_TRAVEL_MS,
+      ease: 'Sine.easeInOut',
+      onComplete: () => {
+        this.letterState = 'envelope';
+        this.letterPrompt?.stop();
+        if (this.textures.exists('feature:letter:letter')) {
+          this.setLetterPromptTexturePreservingSize('feature:letter:letter');
+        }
+        this.startLetterPromptWobble(9, 760);
+        this.letterPrompt?.setInteractive({ useHandCursor: true });
+      },
+    });
+  }
+
+  private showLetterContent(): void {
+    if (!this.letterPrompt || this.letterState !== 'envelope') return;
+
+    this.letterState = 'content';
+    this.letterPrompt.disableInteractive();
+    this.letterWobbleTween?.stop();
+    this.letterPrompt.setVisible(false);
+    this.letterPrompt.stop();
+
+    this.letterBackdrop?.destroy();
+    this.letterBackdrop = this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0x000000, 0.08);
+    this.letterBackdrop.setOrigin(0, 0);
+    this.letterBackdrop.setScrollFactor(0);
+    this.letterBackdrop.setDepth(49);
+    this.letterBackdrop.setInteractive({ useHandCursor: false });
+    this.letterBackdrop.on('pointerup', () => this.closeLetterContent());
+
+    if (this.textures.exists('feature:letter:content')) {
+      this.letterContent?.destroy();
+      this.letterContent = this.add.image(0, 0, 'feature:letter:content');
+      this.letterContent.setOrigin(0.5, 0.5);
+      this.letterContent.setScrollFactor(0);
+      this.letterContent.setDepth(52);
+      this.letterContent.setInteractive({ useHandCursor: true });
+      this.letterContent.on(
+        'pointerup',
+        (
+          _pointer: Phaser.Input.Pointer,
+          _localX: number,
+          _localY: number,
+          event: Phaser.Types.Input.EventData,
+        ) => event.stopPropagation(),
+      );
+    }
+
+    this.layoutLetterContent();
+    this.playLetterDance();
+    this.playLetterMusic();
+  }
+
+  private layoutLetterContent(): void {
+    const viewportWidth = this.scale.width;
+    const viewportHeight = this.scale.height;
+
+    this.letterBackdrop?.setSize(viewportWidth, viewportHeight);
+    this.letterContent?.setPosition(viewportWidth / 2, viewportHeight * LETTER_CONTENT_Y_RATIO);
+    if (this.letterContent) {
+      this.fitImageToBox(
+        this.letterContent,
+        viewportWidth * LETTER_CONTENT_SIZE_RATIO.width,
+        viewportHeight * LETTER_CONTENT_SIZE_RATIO.height,
+      );
+    }
+
+    if (this.letterState === 'content') {
+      this.positionPetForLetterDance();
+    }
+  }
+
+  private playLetterDance(): void {
+    this.pet.setVisible(true);
+    this.pet.setDepth(55);
+    this.pet.setScale(PET_SCALE);
+    this.pet.setFlipX(false);
+    this.pet.disableInteractive();
+    this.positionPetForLetterDance();
+    this.playPet('action:dance:dance');
+  }
+
+  private positionPetForLetterDance(): void {
+    const camera = this.cameras.main;
+    this.pet.setPosition(
+      camera.scrollX + camera.width * LETTER_DANCE_X_RATIO,
+      camera.scrollY + camera.height * LETTER_DANCE_Y_RATIO,
+    );
+  }
+
+  private playLetterMusic(): void {
+    if (!this.cache.audio.exists('feature:letter:music')) return;
+
+    this.stopLetterMusic();
+    this.letterMusic = this.sound.add('feature:letter:music', {
+      loop: true,
+      volume: 0.55,
+    });
+    this.letterMusic.play();
+  }
+
+  private stopLetterMusic(): void {
+    if (!this.letterMusic) return;
+
+    this.letterMusic.stop();
+    this.letterMusic.destroy();
+    this.letterMusic = undefined;
+  }
+
+  private closeLetterContent(): void {
+    if (this.letterState !== 'content') return;
+
+    this.letterState = 'closing';
+    this.stopLetterMusic();
+    this.letterBackdrop?.destroy();
+    this.letterBackdrop = undefined;
+    this.letterContent?.destroy();
+    this.letterContent = undefined;
+    this.letterPrompt?.setVisible(false);
+
+    this.time.delayedCall(LETTER_DANCE_OUTRO_MS, () => {
+      this.pet.setDepth(20);
+      this.pet.setInteractive({ useHandCursor: true });
+      this.letterState = 'idle';
+      this.mode = 'ambient';
+      this.feedButton.setInteractive({ useHandCursor: true });
+      this.resetLetterPrompt();
+      this.enterAmbient();
+    });
+  }
+
+  private resetLetterPrompt(): void {
+    if (!this.letterPrompt) return;
+
+    this.letterMoveTween?.stop();
+    this.letterMoveTween = undefined;
+    this.letterPrompt.stop();
+    if (this.textures.exists('feature:letter:letter')) {
+      this.letterPrompt.setTexture('feature:letter:letter', 0);
+    } else if (this.textures.exists('feature:letter:motion')) {
+      this.letterPrompt.setTexture('feature:letter:motion', 0);
+    }
+    this.letterPrompt.setAngle(0);
+    this.letterPrompt.setDepth(45);
+    this.letterPrompt.setVisible(true);
+    this.letterPrompt.setInteractive({ useHandCursor: true });
+    this.positionLetterPrompt();
+    this.startLetterPromptWobble();
+  }
+
   private configureCamera(): void {
     this.layoutViewport();
   }
@@ -209,6 +538,7 @@ export class PetScene extends Phaser.Scene {
     this.cameraDebugInfo =
       `fixed-center focus=${Math.round(IMAGE_CENTER.x)},${Math.round(IMAGE_CENTER.y)}`;
     this.positionFeedButton();
+    this.layoutLetterFeature();
     this.updateDebugOverlay();
   }
 

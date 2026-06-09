@@ -65,9 +65,10 @@ export const modernActors = {
 export const modernFeatures = {
   "letter": {
     "assets": {
-      "content": "/assets/features/letter/content.jpeg",
-      "letter": "/assets/features/letter/letter.jpeg",
-      "motion": "/assets/features/letter/motion.jpeg"
+      "bday": "/assets/features/letter/bday.ogg",
+      "content": "/assets/features/letter/content.png",
+      "letter": "/assets/features/letter/letter.png",
+      "motion": "/assets/features/letter/motion.png"
     }
   }
 } as const;

@@ -303,6 +303,23 @@ const resizeVisibleFrame = async (source, sourceBounds, targetWidth, targetHeigh
   return resized;
 };
 
+const trimTransparentBounds = (source) => {
+  const bounds = findVisibleBounds(source, {
+    x: 0,
+    y: 0,
+    width: source.width,
+    height: source.height,
+  });
+  if (!bounds) return source;
+
+  const trimmed = createTransparentPng(
+    bounds.maxX - bounds.minX + 1,
+    bounds.maxY - bounds.minY + 1,
+  );
+  copyVisibleFrame(source, trimmed, bounds, 0, 0);
+  return trimmed;
+};
+
 const copyFrameImage = (source, target, targetX, targetY) => {
   for (let y = 0; y < source.height; y += 1) {
     for (let x = 0; x < source.width; x += 1) {
@@ -439,7 +456,7 @@ const processGridSheet = async (sourcePath, outputPath, options = {}) => {
   writePng(outputPath, normalized);
 };
 
-const processObject = async (sourcePath, outputPath, mode = 'white') => {
+const processObject = async (sourcePath, outputPath, mode = 'white', options = {}) => {
   const png = await readImage(sourcePath);
   const bounds = {
     x: 0,
@@ -448,7 +465,7 @@ const processObject = async (sourcePath, outputPath, mode = 'white') => {
     height: png.height,
   };
   removeBackground(png, bounds, mode);
-  writePng(outputPath, png);
+  writePng(outputPath, options.trim ? trimTransparentBounds(png) : png);
 };
 
 const processButton = async (sourcePath, outputPath) => {
@@ -588,16 +605,39 @@ const processActor = async (actorName) => {
   };
 };
 
-const copyFeatureAssets = () => {
+const isImageFile = (filePath) => /\.(jpe?g|png|webp)$/i.test(filePath);
+
+const getFeatureOutput = (feature, key, filePath, outputExtension = path.extname(filePath)) => {
+  const relativeOutput = path.join('features', feature, `${key}${outputExtension}`).replaceAll(path.sep, '/');
+  return {
+    outputPath: path.join(OUTPUT_DIR, relativeOutput),
+    publicPath: `/assets/${relativeOutput}`,
+  };
+};
+
+const processFeatureAssets = async () => {
   const features = {};
 
   for (const { feature, filePath, key } of listFeatureFiles(path.join(SOURCE_DIR, 'features'))) {
-    const relativeOutput = path.join('features', feature, path.basename(filePath)).replaceAll(path.sep, '/');
-    const outputPath = path.join(OUTPUT_DIR, relativeOutput);
-    ensureDir(path.dirname(outputPath));
-    fs.copyFileSync(filePath, outputPath);
+    let publicPath;
+
+    if (feature === 'letter' && key === 'motion' && isImageFile(filePath)) {
+      const output = getFeatureOutput(feature, key, filePath, '.png');
+      await processGridSheet(filePath, output.outputPath, { key, preserveSourceScale: true });
+      publicPath = output.publicPath;
+    } else if (feature === 'letter' && ['letter', 'content'].includes(key) && isImageFile(filePath)) {
+      const output = getFeatureOutput(feature, key, filePath, '.png');
+      await processObject(filePath, output.outputPath, 'green', { trim: true });
+      publicPath = output.publicPath;
+    } else {
+      const output = getFeatureOutput(feature, key, filePath);
+      ensureDir(path.dirname(output.outputPath));
+      fs.copyFileSync(filePath, output.outputPath);
+      publicPath = output.publicPath;
+    }
+
     features[feature] ??= { assets: {} };
-    features[feature].assets[key] = `/assets/${relativeOutput}`;
+    features[feature].assets[key] = publicPath;
   }
 
   return features;
@@ -672,7 +712,7 @@ if (fs.existsSync(actorsDir)) {
   }
 }
 
-const features = copyFeatureAssets();
+const features = await processFeatureAssets();
 
 await processButton(
   path.join(SOURCE_DIR, 'ui/feed_button.jpeg'),
