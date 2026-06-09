@@ -98,7 +98,8 @@ After background removal, the processor also normalizes every animation frame to
 
 Current runtime animation speeds:
 
-- Ambient animations: `3 fps`
+- Ambient activities hold on tagged safe frames and play short micro-actions from their
+  eight-frame sheets
 - Feed run: `7 fps`
 - Feed eat: `4 fps`
 - Touch: `4 fps`
@@ -230,7 +231,7 @@ Rules:
 - Feeding sets `food = 100`
 - Opening the game recalculates food from `lastFedAt`
 - If `food <= 0`, Snoopy plays the `sad` emotion at the current position
-- If `food > 0`, ambient selection chooses randomly from Snoopy ambient animations
+- If `food > 0`, ambient selection chooses randomly from eligible Snoopy activities
 
 ## Runtime Modes
 
@@ -244,9 +245,12 @@ touching
 
 ### Ambient
 
-- Snoopy stands at home position
-- A random ambient animation loops
-- Every 7-12 seconds, a new ambient animation may be selected
+- Snoopy runs as an actor with its own ambient activity timer
+- Most ambient sheets hold on safe anchor frames, then occasionally play short
+  micro-actions before returning to a safe frame
+- Ambient activities switch only after their dwell time and only from safe exit frames
+- The `sleep` activity is excluded from normal random selection
+- Motion-style ambient sheets such as football and drive can still use legacy looping
 - If food is `0`, Snoopy plays the `sad` emotion instead of choosing a new ambient
 
 ### Feeding
@@ -272,7 +276,8 @@ During feeding:
 
 ### Touching
 
-Triggered by clicking/tapping Snoopy.
+Triggered by single-clicking/tapping Snoopy. Double-clicking Snoopy switches to another
+ambient activity instead of petting.
 
 ```text
 Snoopy plays touch

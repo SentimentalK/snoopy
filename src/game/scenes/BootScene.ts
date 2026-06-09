@@ -10,6 +10,7 @@ import {
   modernTouchAssets,
   modernUiAssets,
 } from '../data/generatedModernAssets';
+import { SNOOPY_ACTIVITY_DEFINITIONS } from '../actors/snoopyActivities';
 
 const actorPath = (actor: string, category: string, key: string) => (
   `/assets/actors/${actor}/${category}/${key}.png`
@@ -107,7 +108,9 @@ export class BootScene extends Phaser.Scene {
 
   create(): void {
     for (const key of modernSnoopy.ambientAnimations) {
-      this.createLoop(`ambient:${key}`, 5);
+      if (SNOOPY_ACTIVITY_DEFINITIONS[key]?.legacyLoop) {
+        this.createLoop(`ambient:${key}`, 5);
+      }
     }
 
     for (const key of modernSnoopy.emotionAnimations) {
