@@ -2,13 +2,15 @@ import Phaser from 'phaser';
 import {
   MODERN_FRAME_HEIGHT,
   MODERN_FRAME_WIDTH,
-  modernAmbientAnimationGroups,
-  modernAmbientAnimations,
-  modernEmotionAnimations,
+  modernSnoopy,
 } from '../data/generatedModernAssets';
 import { PetCareState, PetCareStore } from '../systems/PetCareStore';
 
 type RuntimeMode = 'ambient' | 'feeding' | 'touching';
+
+const SNOOPY_AMBIENT_ANIMATIONS = modernSnoopy.ambientAnimations;
+const SNOOPY_AMBIENT_ANIMATION_GROUPS = modernSnoopy.ambientAnimationGroups;
+const SNOOPY_EMOTION_ANIMATIONS = modernSnoopy.emotionAnimations;
 
 const WORLD_WIDTH = 2752;
 const WORLD_HEIGHT = 1536;
@@ -82,7 +84,7 @@ const AMBIENT_GROUP_PLACEMENTS: Record<string, AmbientPlacement> = {
 const createAmbientPlacementMap = () => {
   const placementByKey = new Map<string, AmbientPlacement>();
 
-  for (const [group, keys] of Object.entries(modernAmbientAnimationGroups)) {
+  for (const [group, keys] of Object.entries(SNOOPY_AMBIENT_ANIMATION_GROUPS)) {
     const placement = AMBIENT_GROUP_PLACEMENTS[group] ?? DEFAULT_AMBIENT_PLACEMENT;
     for (const key of keys) {
       placementByKey.set(key, placement);
@@ -134,8 +136,8 @@ export class PetScene extends Phaser.Scene {
   }
 
   private createPet(): void {
-    const initialKey = modernAmbientAnimations[0] ?? modernEmotionAnimations[0] ?? 'happy';
-    const ambientKeys = modernAmbientAnimations as readonly string[];
+    const initialKey = SNOOPY_AMBIENT_ANIMATIONS[0] ?? SNOOPY_EMOTION_ANIMATIONS[0] ?? 'happy';
+    const ambientKeys = SNOOPY_AMBIENT_ANIMATIONS as readonly string[];
     const initialTexture = ambientKeys.includes(initialKey)
       ? `ambient:${initialKey}`
       : `emotion:${initialKey}`;
@@ -377,7 +379,7 @@ export class PetScene extends Phaser.Scene {
   }
 
   private hasEmotion(key: string): boolean {
-    const emotionKeys = modernEmotionAnimations as readonly string[];
+    const emotionKeys = SNOOPY_EMOTION_ANIMATIONS as readonly string[];
     return emotionKeys.includes(key);
   }
 
@@ -406,7 +408,7 @@ export class PetScene extends Phaser.Scene {
   private showNextDebugAmbient(): void {
     if (this.mode !== 'ambient') return;
 
-    const ambientKeys = modernAmbientAnimations as readonly string[];
+    const ambientKeys = SNOOPY_AMBIENT_ANIMATIONS as readonly string[];
     const currentIndex = this.currentAmbientKey
       ? ambientKeys.indexOf(this.currentAmbientKey)
       : -1;
@@ -538,7 +540,7 @@ export class PetScene extends Phaser.Scene {
   }
 
   private pickAmbientKey(): string {
-    return Phaser.Math.RND.pick([...modernAmbientAnimations]);
+    return Phaser.Math.RND.pick([...SNOOPY_AMBIENT_ANIMATIONS]);
   }
 
   private scheduleNextAmbient(): void {

@@ -38,25 +38,38 @@ src/source/
   backgrounds/
     sunny.jpeg
 
-  ambient/
-    happy.jpeg
-    reading.jpeg
-    sad.jpeg
-    roof-edge/
-      drive.jpeg
-    roof-center/
-      sleepy.jpeg
-    roof-center-lower/
-      sleep.jpeg
+  actors/
+    snoopy/
+      ambient/
+        reading.jpeg
+        motion/
+          football.jpeg
+        roof-edge/
+          drive.jpeg
+        roof-center/
+          sleepy.jpeg
+        roof-center-lower/
+          sleep.jpeg
 
-  actions/
-    feed/
-      run.jpeg
-      eat.jpeg
-      food.jpeg
+      emotions/
+        happy.jpeg
+        sad.jpeg
 
-    touch/
-      touch.jpeg
+      actions/
+        dance/
+          dance.jpeg
+        feed/
+          run.jpeg
+          eat.jpeg
+          food.jpeg
+        touch/
+          touch.jpeg
+
+  features/
+    letter/
+      letter.jpeg
+      motion.jpeg
+      content.jpeg
 
   ui/
     feed_button.jpeg
@@ -108,7 +121,7 @@ The asset processor removes edge-connected checker/white background.
 
 The food bowl is currently a single object:
 
-- File: `src/source/actions/feed/food.jpeg`
+- File: `src/source/actors/snoopy/actions/feed/food.jpeg`
 - Source size: `2752 x 1536`
 - Processed as a transparent PNG object, not as an animation sheet
 
@@ -125,9 +138,11 @@ This writes:
 ```text
 public/assets/
   backgrounds/sunny.jpeg
-  ambient/*.png
-  actions/feed/*.png
-  actions/touch/*.png
+  actors/snoopy/ambient/*.png
+  actors/snoopy/emotions/*.png
+  actors/snoopy/actions/feed/*.png
+  actors/snoopy/actions/touch/*.png
+  features/letter/*.jpeg
   ui/feed_button.png
 ```
 
@@ -171,20 +186,22 @@ npm run docker:prod
 
 The runtime uses folder semantics:
 
-- `ambient/`: animations that can play freely while the pet is idle
-- `actions/feed/`: assets required for feeding
-- `actions/touch/`: assets required for tapping/petting Snoopy
+- `actors/<name>/ambient/`: actor animations that can play freely while that actor is idle
+- `actors/<name>/emotions/`: actor emotional states such as happy or sad
+- `actors/<name>/actions/`: actor actions such as feeding, touching, or dancing
+- `features/<name>/`: feature-owned assets such as letters, gifts, or event overlays
 - `backgrounds/`: scene backgrounds; future weather/time-of-day variants go here
 - `ui/`: image-based UI controls
 
-Future behavior should be added by moving or adding files to semantic folders, then extending the runtime rules around those folders.
+Future behavior should be added by moving or adding files to semantic folders, then extending the runtime rules around those folders. The current game uses `actors/snoopy`, but the source tree is ready for additional actors such as Woodstock.
 
 Examples:
 
-- If an idle animation needs a special roof placement, put it in an `ambient/` subfolder such as `roof-edge/`, `roof-center/`, or `roof-center-lower/`.
-- If an ambient behavior becomes a paid/special action, move it out of `ambient/` and into an action folder.
+- If a Snoopy idle animation needs a special roof placement, put it in `actors/snoopy/ambient/roof-edge/`, `roof-center/`, or `roof-center-lower/`.
+- If a Snoopy ambient behavior becomes a paid/special action, move it into `actors/snoopy/actions/<action>/`.
+- If a letter, gift, or notification owns its own images/audio, put them under `features/<feature>/`.
 - If weather is added, add `backgrounds/rainy.jpeg`, `backgrounds/night.jpeg`, etc.
-- If play is added, create `actions/play/` and put its animation/object assets there.
+- If another character is added, create `actors/<character>/` with its own `ambient/`, `emotions/`, and `actions/`.
 
 ### Debug Mode
 
@@ -212,8 +229,8 @@ Rules:
 
 - Feeding sets `food = 100`
 - Opening the game recalculates food from `lastFedAt`
-- If `food <= 0`, ambient selection is forced to `sad`
-- If `food > 0`, ambient selection chooses randomly from non-sad ambient animations
+- If `food <= 0`, Snoopy plays the `sad` emotion at the current position
+- If `food > 0`, ambient selection chooses randomly from Snoopy ambient animations
 
 ## Runtime Modes
 
@@ -230,7 +247,7 @@ touching
 - Snoopy stands at home position
 - A random ambient animation loops
 - Every 7-12 seconds, a new ambient animation may be selected
-- If food is `0`, `sad` is selected instead
+- If food is `0`, Snoopy plays the `sad` emotion instead of choosing a new ambient
 
 ### Feeding
 
@@ -244,7 +261,7 @@ Snoopy moves to food target
 food bowl hides
 Snoopy plays eat
 food resets to 100
-Snoopy plays happy
+Snoopy plays the happy emotion
 return to ambient
 ```
 
@@ -259,7 +276,7 @@ Triggered by clicking/tapping Snoopy.
 
 ```text
 Snoopy plays touch
-Snoopy plays happy
+Snoopy plays the happy emotion
 return to ambient
 ```
 

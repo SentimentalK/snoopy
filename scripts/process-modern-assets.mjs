@@ -529,7 +529,87 @@ const listGroupedJpegs = (dir) => {
     })));
 };
 
-const writeManifest = ({ ambientKeys, ambientGroups, emotionKeys, actionGroups }) => {
+const listFeatureFiles = (dir) => {
+  if (!fs.existsSync(dir)) return [];
+
+  return fs.readdirSync(dir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .flatMap((entry) => fs.readdirSync(path.join(dir, entry.name), { withFileTypes: true })
+      .filter((fileEntry) => fileEntry.isFile())
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((fileEntry) => ({
+        feature: entry.name,
+        filePath: path.join(dir, entry.name, fileEntry.name),
+        key: toKey(fileEntry.name),
+      })));
+};
+
+const processActor = async (actorName) => {
+  const actorSourceDir = path.join(SOURCE_DIR, 'actors', actorName);
+  const actorOutputDir = path.join(OUTPUT_DIR, 'actors', actorName);
+
+  const ambientKeys = [];
+  const ambientGroups = {};
+  for (const { filePath, group, key } of listAmbientJpegs(path.join(actorSourceDir, 'ambient'))) {
+    ambientKeys.push(key);
+    ambientGroups[group] ??= [];
+    ambientGroups[group].push(key);
+    await processGridSheet(filePath, path.join(actorOutputDir, `ambient/${key}.png`), {
+      key,
+      preserveSourceScale: group === 'motion',
+      recline: key === 'sleep',
+    });
+  }
+
+  const emotionKeys = [];
+  for (const filePath of listJpegs(path.join(actorSourceDir, 'emotions'))) {
+    const key = toKey(filePath);
+    emotionKeys.push(key);
+    await processGridSheet(filePath, path.join(actorOutputDir, `emotions/${key}.png`), { key });
+  }
+
+  const actionGroups = {};
+  for (const { filePath, group, key } of listGroupedJpegs(path.join(actorSourceDir, 'actions'))) {
+    actionGroups[group] ??= {};
+    actionGroups[group][key] = key;
+    if (actorName === 'snoopy' && group === 'feed' && key === 'food') {
+      await processObject(filePath, path.join(actorOutputDir, `actions/${group}/${key}.png`), 'white');
+    } else {
+      await processGridSheet(filePath, path.join(actorOutputDir, `actions/${group}/${key}.png`), { key });
+    }
+  }
+
+  return {
+    actionGroups,
+    ambientAnimationGroups: ambientGroups,
+    ambientAnimations: ambientKeys,
+    emotionAnimations: emotionKeys,
+  };
+};
+
+const copyFeatureAssets = () => {
+  const features = {};
+
+  for (const { feature, filePath, key } of listFeatureFiles(path.join(SOURCE_DIR, 'features'))) {
+    const relativeOutput = path.join('features', feature, path.basename(filePath)).replaceAll(path.sep, '/');
+    const outputPath = path.join(OUTPUT_DIR, relativeOutput);
+    ensureDir(path.dirname(outputPath));
+    fs.copyFileSync(filePath, outputPath);
+    features[feature] ??= { assets: {} };
+    features[feature].assets[key] = `/assets/${relativeOutput}`;
+  }
+
+  return features;
+};
+
+const writeManifest = ({ actors, features }) => {
+  const snoopy = actors.snoopy ?? {
+    actionGroups: {},
+    ambientAnimationGroups: {},
+    ambientAnimations: [],
+    emotionAnimations: [],
+  };
   const manifest = `export const MODERN_GAME_WIDTH = ${GAME_WIDTH};
 export const MODERN_GAME_HEIGHT = ${GAME_HEIGHT};
 export const MODERN_FRAME_WIDTH = ${FRAME_WIDTH};
@@ -540,22 +620,28 @@ export const modernBackgrounds = {
   sunny: '/assets/backgrounds/sunny.jpeg',
 } as const;
 
-export const modernAmbientAnimations = ${JSON.stringify(ambientKeys, null, 2)} as const;
+export const modernActors = ${JSON.stringify(actors, null, 2)} as const;
 
-export const modernAmbientAnimationGroups = ${JSON.stringify(ambientGroups, null, 2)} as const;
+export const modernFeatures = ${JSON.stringify(features, null, 2)} as const;
 
-export const modernEmotionAnimations = ${JSON.stringify(emotionKeys, null, 2)} as const;
+export const modernSnoopy = modernActors.snoopy;
 
-export const modernActionGroups = ${JSON.stringify(actionGroups, null, 2)} as const;
+export const modernAmbientAnimations = modernSnoopy.ambientAnimations;
+
+export const modernAmbientAnimationGroups = modernSnoopy.ambientAnimationGroups;
+
+export const modernEmotionAnimations = modernSnoopy.emotionAnimations;
+
+export const modernActionGroups = modernSnoopy.actionGroups;
 
 export const modernFeedAssets = {
-  run: ${JSON.stringify(actionGroups.feed?.run ?? null)},
-  eat: ${JSON.stringify(actionGroups.feed?.eat ?? null)},
-  food: ${JSON.stringify(actionGroups.feed?.food ?? null)},
+  run: ${JSON.stringify(snoopy.actionGroups.feed?.run ?? null)},
+  eat: ${JSON.stringify(snoopy.actionGroups.feed?.eat ?? null)},
+  food: ${JSON.stringify(snoopy.actionGroups.feed?.food ?? null)},
 } as const;
 
 export const modernTouchAssets = {
-  touch: ${JSON.stringify(actionGroups.touch?.touch ?? null)},
+  touch: ${JSON.stringify(snoopy.actionGroups.touch?.touch ?? null)},
 } as const;
 
 export const modernUiAssets = {
@@ -568,7 +654,7 @@ export const modernUiAssets = {
 };
 
 ensureDir(OUTPUT_DIR);
-for (const ownedDir of ['actions', 'ambient', 'backgrounds', 'emotions', 'ui']) {
+for (const ownedDir of ['actions', 'actors', 'ambient', 'backgrounds', 'emotions', 'features', 'ui']) {
   fs.rmSync(path.join(OUTPUT_DIR, ownedDir), { recursive: true, force: true });
 }
 
@@ -576,43 +662,24 @@ const backgroundSource = path.join(SOURCE_DIR, 'backgrounds/sunny.jpeg');
 ensureDir(path.join(OUTPUT_DIR, 'backgrounds'));
 fs.copyFileSync(backgroundSource, path.join(OUTPUT_DIR, 'backgrounds/sunny.jpeg'));
 
-const ambientKeys = [];
-const ambientGroups = {};
-for (const { filePath, group, key } of listAmbientJpegs(path.join(SOURCE_DIR, 'ambient'))) {
-  ambientKeys.push(key);
-  ambientGroups[group] ??= [];
-  ambientGroups[group].push(key);
-  await processGridSheet(filePath, path.join(OUTPUT_DIR, `ambient/${key}.png`), {
-    key,
-    preserveSourceScale: group === 'motion',
-    recline: key === 'sleep',
-  });
-}
-
-const emotionKeys = [];
-for (const filePath of listJpegs(path.join(SOURCE_DIR, 'emotions'))) {
-  const key = toKey(filePath);
-  emotionKeys.push(key);
-  await processGridSheet(filePath, path.join(OUTPUT_DIR, `emotions/${key}.png`), { key });
-}
-
-const actionGroups = {};
-for (const { filePath, group, key } of listGroupedJpegs(path.join(SOURCE_DIR, 'actions'))) {
-  actionGroups[group] ??= {};
-  actionGroups[group][key] = key;
-  if (group === 'feed' && key === 'food') {
-    await processObject(filePath, path.join(OUTPUT_DIR, `actions/${group}/${key}.png`), 'white');
-  } else {
-    await processGridSheet(filePath, path.join(OUTPUT_DIR, `actions/${group}/${key}.png`), { key });
+const actors = {};
+const actorsDir = path.join(SOURCE_DIR, 'actors');
+if (fs.existsSync(actorsDir)) {
+  for (const entry of fs.readdirSync(actorsDir, { withFileTypes: true })
+    .filter((item) => item.isDirectory())
+    .sort((a, b) => a.name.localeCompare(b.name))) {
+    actors[entry.name] = await processActor(entry.name);
   }
 }
+
+const features = copyFeatureAssets();
 
 await processButton(
   path.join(SOURCE_DIR, 'ui/feed_button.jpeg'),
   path.join(OUTPUT_DIR, 'ui/feed_button.png'),
 );
 
-writeManifest({ ambientKeys, ambientGroups, emotionKeys, actionGroups });
+writeManifest({ actors, features });
 
 console.log(`Processed modern assets to ${path.relative(ROOT, OUTPUT_DIR)}`);
 console.log(`Generated ${path.relative(ROOT, GENERATED_MANIFEST)}`);

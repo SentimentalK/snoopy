@@ -3,20 +3,23 @@ import {
   MODERN_FRAME_HEIGHT,
   MODERN_FRAME_WIDTH,
   MODERN_GRID_FRAMES,
-  modernActionGroups,
-  modernAmbientAnimations,
   modernBackgrounds,
-  modernEmotionAnimations,
   modernFeedAssets,
+  modernSnoopy,
   modernTouchAssets,
   modernUiAssets,
 } from '../data/generatedModernAssets';
 
-const ambientPath = (key: string) => `/assets/ambient/${key}.png`;
-const emotionPath = (key: string) => `/assets/emotions/${key}.png`;
-const actionPath = (group: string, key: string) => `/assets/actions/${group}/${key}.png`;
-const feedPath = (key: string) => `/assets/actions/feed/${key}.png`;
-const touchPath = (key: string) => `/assets/actions/touch/${key}.png`;
+const actorPath = (actor: string, category: string, key: string) => (
+  `/assets/actors/${actor}/${category}/${key}.png`
+);
+const snoopyAmbientPath = (key: string) => actorPath('snoopy', 'ambient', key);
+const snoopyEmotionPath = (key: string) => actorPath('snoopy', 'emotions', key);
+const snoopyActionPath = (group: string, key: string) => (
+  `/assets/actors/snoopy/actions/${group}/${key}.png`
+);
+const feedPath = (key: string) => snoopyActionPath('feed', key);
+const touchPath = (key: string) => snoopyActionPath('touch', key);
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -26,24 +29,24 @@ export class BootScene extends Phaser.Scene {
   preload(): void {
     this.load.image('background:sunny', modernBackgrounds.sunny);
 
-    for (const key of modernAmbientAnimations) {
-      this.load.spritesheet(`ambient:${key}`, ambientPath(key), {
+    for (const key of modernSnoopy.ambientAnimations) {
+      this.load.spritesheet(`ambient:${key}`, snoopyAmbientPath(key), {
         frameWidth: MODERN_FRAME_WIDTH,
         frameHeight: MODERN_FRAME_HEIGHT,
       });
     }
 
-    for (const key of modernEmotionAnimations) {
-      this.load.spritesheet(`emotion:${key}`, emotionPath(key), {
+    for (const key of modernSnoopy.emotionAnimations) {
+      this.load.spritesheet(`emotion:${key}`, snoopyEmotionPath(key), {
         frameWidth: MODERN_FRAME_WIDTH,
         frameHeight: MODERN_FRAME_HEIGHT,
       });
     }
 
-    for (const [group, assets] of Object.entries(modernActionGroups)) {
+    for (const [group, assets] of Object.entries(modernSnoopy.actionGroups)) {
       for (const key of Object.keys(assets)) {
         if (group === 'feed' && key === 'food') continue;
-        this.load.spritesheet(`action:${group}:${key}`, actionPath(group, key), {
+        this.load.spritesheet(`action:${group}:${key}`, snoopyActionPath(group, key), {
           frameWidth: MODERN_FRAME_WIDTH,
           frameHeight: MODERN_FRAME_HEIGHT,
         });
@@ -82,15 +85,15 @@ export class BootScene extends Phaser.Scene {
   }
 
   create(): void {
-    for (const key of modernAmbientAnimations) {
+    for (const key of modernSnoopy.ambientAnimations) {
       this.createLoop(`ambient:${key}`, 5);
     }
 
-    for (const key of modernEmotionAnimations) {
+    for (const key of modernSnoopy.emotionAnimations) {
       this.createLoop(`emotion:${key}`, 5);
     }
 
-    for (const [group, assets] of Object.entries(modernActionGroups)) {
+    for (const [group, assets] of Object.entries(modernSnoopy.actionGroups)) {
       for (const key of Object.keys(assets)) {
         if (group === 'feed' && key === 'food') continue;
         this.createLoop(`action:${group}:${key}`, 6);

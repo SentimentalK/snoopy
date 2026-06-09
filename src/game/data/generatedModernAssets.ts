@@ -8,58 +8,79 @@ export const modernBackgrounds = {
   sunny: '/assets/backgrounds/sunny.jpeg',
 } as const;
 
-export const modernAmbientAnimations = [
-  "brush-teeth",
-  "draw",
-  "reading",
-  "think",
-  "football",
-  "sleepy",
-  "tired",
-  "sleep",
-  "drive"
-] as const;
-
-export const modernAmbientAnimationGroups = {
-  "default": [
-    "brush-teeth",
-    "draw",
-    "reading",
-    "think"
-  ],
-  "motion": [
-    "football"
-  ],
-  "roof-center": [
-    "sleepy",
-    "tired"
-  ],
-  "roof-center-lower": [
-    "sleep"
-  ],
-  "roof-edge": [
-    "drive"
-  ]
-} as const;
-
-export const modernEmotionAnimations = [
-  "happy",
-  "sad"
-] as const;
-
-export const modernActionGroups = {
-  "dance": {
-    "dance": "dance"
-  },
-  "feed": {
-    "eat": "eat",
-    "food": "food",
-    "run": "run"
-  },
-  "touch": {
-    "touch": "touch"
+export const modernActors = {
+  "snoopy": {
+    "actionGroups": {
+      "dance": {
+        "dance": "dance"
+      },
+      "feed": {
+        "eat": "eat",
+        "food": "food",
+        "run": "run"
+      },
+      "touch": {
+        "touch": "touch"
+      }
+    },
+    "ambientAnimationGroups": {
+      "default": [
+        "brush-teeth",
+        "draw",
+        "reading",
+        "think"
+      ],
+      "motion": [
+        "football"
+      ],
+      "roof-center": [
+        "sleepy",
+        "tired"
+      ],
+      "roof-center-lower": [
+        "sleep"
+      ],
+      "roof-edge": [
+        "drive"
+      ]
+    },
+    "ambientAnimations": [
+      "brush-teeth",
+      "draw",
+      "reading",
+      "think",
+      "football",
+      "sleepy",
+      "tired",
+      "sleep",
+      "drive"
+    ],
+    "emotionAnimations": [
+      "happy",
+      "sad"
+    ]
   }
 } as const;
+
+export const modernFeatures = {
+  "letter": {
+    "assets": {
+      "content": "/assets/features/letter/content.jpeg",
+      "letter": "/assets/features/letter/letter.jpeg",
+      "motion": "/assets/features/letter/motion.jpeg"
+    }
+  }
+} as const;
+
+export const modernSnoopy = modernActors.snoopy;
+
+export const modernAmbientAnimations = modernSnoopy.ambientAnimations;
+
+export const modernAmbientAnimationGroups = modernSnoopy.ambientAnimationGroups;
+
+export const modernEmotionAnimations = modernSnoopy.emotionAnimations;
+
+export const modernActionGroups = modernSnoopy.actionGroups;
 
 export const modernFeedAssets = {
   run: "run",
