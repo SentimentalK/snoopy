@@ -529,7 +529,7 @@ const listGroupedJpegs = (dir) => {
     })));
 };
 
-const writeManifest = ({ ambientKeys, ambientGroups, actionGroups }) => {
+const writeManifest = ({ ambientKeys, ambientGroups, emotionKeys, actionGroups }) => {
   const manifest = `export const MODERN_GAME_WIDTH = ${GAME_WIDTH};
 export const MODERN_GAME_HEIGHT = ${GAME_HEIGHT};
 export const MODERN_FRAME_WIDTH = ${FRAME_WIDTH};
@@ -543,6 +543,8 @@ export const modernBackgrounds = {
 export const modernAmbientAnimations = ${JSON.stringify(ambientKeys, null, 2)} as const;
 
 export const modernAmbientAnimationGroups = ${JSON.stringify(ambientGroups, null, 2)} as const;
+
+export const modernEmotionAnimations = ${JSON.stringify(emotionKeys, null, 2)} as const;
 
 export const modernActionGroups = ${JSON.stringify(actionGroups, null, 2)} as const;
 
@@ -566,7 +568,7 @@ export const modernUiAssets = {
 };
 
 ensureDir(OUTPUT_DIR);
-for (const ownedDir of ['actions', 'ambient', 'backgrounds', 'ui']) {
+for (const ownedDir of ['actions', 'ambient', 'backgrounds', 'emotions', 'ui']) {
   fs.rmSync(path.join(OUTPUT_DIR, ownedDir), { recursive: true, force: true });
 }
 
@@ -587,6 +589,13 @@ for (const { filePath, group, key } of listAmbientJpegs(path.join(SOURCE_DIR, 'a
   });
 }
 
+const emotionKeys = [];
+for (const filePath of listJpegs(path.join(SOURCE_DIR, 'emotions'))) {
+  const key = toKey(filePath);
+  emotionKeys.push(key);
+  await processGridSheet(filePath, path.join(OUTPUT_DIR, `emotions/${key}.png`), { key });
+}
+
 const actionGroups = {};
 for (const { filePath, group, key } of listGroupedJpegs(path.join(SOURCE_DIR, 'actions'))) {
   actionGroups[group] ??= {};
@@ -603,7 +612,7 @@ await processButton(
   path.join(OUTPUT_DIR, 'ui/feed_button.png'),
 );
 
-writeManifest({ ambientKeys, ambientGroups, actionGroups });
+writeManifest({ ambientKeys, ambientGroups, emotionKeys, actionGroups });
 
 console.log(`Processed modern assets to ${path.relative(ROOT, OUTPUT_DIR)}`);
 console.log(`Generated ${path.relative(ROOT, GENERATED_MANIFEST)}`);

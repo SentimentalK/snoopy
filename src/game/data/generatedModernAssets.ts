@@ -11,9 +11,7 @@ export const modernBackgrounds = {
 export const modernAmbientAnimations = [
   "brush-teeth",
   "draw",
-  "happy",
   "reading",
-  "sad",
   "think",
   "football",
   "sleepy",
@@ -26,9 +24,7 @@ export const modernAmbientAnimationGroups = {
   "default": [
     "brush-teeth",
     "draw",
-    "happy",
     "reading",
-    "sad",
     "think"
   ],
   "motion": [
@@ -45,6 +41,11 @@ export const modernAmbientAnimationGroups = {
     "drive"
   ]
 } as const;
+
+export const modernEmotionAnimations = [
+  "happy",
+  "sad"
+] as const;
 
 export const modernActionGroups = {
   "dance": {

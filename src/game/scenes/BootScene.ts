@@ -6,12 +6,14 @@ import {
   modernActionGroups,
   modernAmbientAnimations,
   modernBackgrounds,
+  modernEmotionAnimations,
   modernFeedAssets,
   modernTouchAssets,
   modernUiAssets,
 } from '../data/generatedModernAssets';
 
 const ambientPath = (key: string) => `/assets/ambient/${key}.png`;
+const emotionPath = (key: string) => `/assets/emotions/${key}.png`;
 const actionPath = (group: string, key: string) => `/assets/actions/${group}/${key}.png`;
 const feedPath = (key: string) => `/assets/actions/feed/${key}.png`;
 const touchPath = (key: string) => `/assets/actions/touch/${key}.png`;
@@ -26,6 +28,13 @@ export class BootScene extends Phaser.Scene {
 
     for (const key of modernAmbientAnimations) {
       this.load.spritesheet(`ambient:${key}`, ambientPath(key), {
+        frameWidth: MODERN_FRAME_WIDTH,
+        frameHeight: MODERN_FRAME_HEIGHT,
+      });
+    }
+
+    for (const key of modernEmotionAnimations) {
+      this.load.spritesheet(`emotion:${key}`, emotionPath(key), {
         frameWidth: MODERN_FRAME_WIDTH,
         frameHeight: MODERN_FRAME_HEIGHT,
       });
@@ -75,6 +84,10 @@ export class BootScene extends Phaser.Scene {
   create(): void {
     for (const key of modernAmbientAnimations) {
       this.createLoop(`ambient:${key}`, 5);
+    }
+
+    for (const key of modernEmotionAnimations) {
+      this.createLoop(`emotion:${key}`, 5);
     }
 
     for (const [group, assets] of Object.entries(modernActionGroups)) {

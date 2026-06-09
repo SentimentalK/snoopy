@@ -4,6 +4,7 @@ import {
   MODERN_FRAME_WIDTH,
   modernAmbientAnimationGroups,
   modernAmbientAnimations,
+  modernEmotionAnimations,
 } from '../data/generatedModernAssets';
 import { PetCareState, PetCareStore } from '../systems/PetCareStore';
 
@@ -98,6 +99,7 @@ export class PetScene extends Phaser.Scene {
   private careStore = new PetCareStore();
   private careState!: PetCareState;
   private ambientTimer?: Phaser.Time.TimerEvent;
+  private emotionTimer?: Phaser.Time.TimerEvent;
   private ambientPlacementByKey = createAmbientPlacementMap();
 
   constructor() {
@@ -124,7 +126,12 @@ export class PetScene extends Phaser.Scene {
   }
 
   private createPet(): void {
-    this.pet = this.add.sprite(PET_HOME.x, PET_HOME.y, 'ambient:happy', 0);
+    const initialKey = modernAmbientAnimations[0] ?? modernEmotionAnimations[0] ?? 'happy';
+    const ambientKeys = modernAmbientAnimations as readonly string[];
+    const initialTexture = ambientKeys.includes(initialKey)
+      ? `ambient:${initialKey}`
+      : `emotion:${initialKey}`;
+    this.pet = this.add.sprite(PET_HOME.x, PET_HOME.y, initialTexture, 0);
     this.pet.setOrigin(0.5, 1);
     this.pet.setScale(PET_SCALE);
     this.pet.setDepth(20);
@@ -341,12 +348,45 @@ export class PetScene extends Phaser.Scene {
   private enterAmbient(preferredKey?: string): void {
     this.mode = 'ambient';
     this.food.setVisible(false);
+    this.emotionTimer?.remove(false);
+    this.careState = this.careStore.applyDecay(this.careState);
+
+    if (!preferredKey && this.careState.food <= 0 && this.hasEmotion('sad')) {
+      this.playEmotion('sad');
+      return;
+    }
 
     const key = preferredKey ?? this.pickAmbientKey();
     this.currentAmbientKey = key;
     this.positionPetForAmbient(key);
     this.playPet(`ambient:${key}`);
     this.scheduleNextAmbient();
+  }
+
+  private hasEmotion(key: string): boolean {
+    const emotionKeys = modernEmotionAnimations as readonly string[];
+    return emotionKeys.includes(key);
+  }
+
+  private playEmotion(key: string): boolean {
+    if (!this.hasEmotion(key)) return false;
+    this.mode = 'ambient';
+    this.food.setVisible(false);
+    this.ambientTimer?.remove(false);
+    this.emotionTimer?.remove(false);
+    this.currentAmbientKey = `emotion:${key}`;
+    this.playPet(`emotion:${key}`);
+    this.updateDebugOverlay();
+    return true;
+  }
+
+  private playEmotionThenAmbient(key: string, duration = 2200): void {
+    if (!this.playEmotion(key)) {
+      this.enterAmbient();
+      return;
+    }
+
+    this.emotionTimer = this.time.delayedCall(duration, () => this.enterAmbient());
   }
 
   private showNextDebugAmbient(): void {
@@ -407,13 +447,7 @@ export class PetScene extends Phaser.Scene {
   }
 
   private pickAmbientKey(): string {
-    this.careState = this.careStore.applyDecay(this.careState);
-    if (this.careState.food <= 0 && modernAmbientAnimations.includes('sad')) {
-      return 'sad';
-    }
-
-    const candidates = modernAmbientAnimations.filter((key) => key !== 'sad');
-    return Phaser.Math.RND.pick([...candidates]);
+    return Phaser.Math.RND.pick([...modernAmbientAnimations]);
   }
 
   private scheduleNextAmbient(): void {
@@ -461,7 +495,7 @@ export class PetScene extends Phaser.Scene {
     this.time.delayedCall(4200, () => {
       this.careState = this.careStore.feed();
       this.feedButton.setInteractive({ useHandCursor: true });
-      this.enterAmbient('happy');
+      this.playEmotionThenAmbient('happy');
     });
   }
 
@@ -475,7 +509,7 @@ export class PetScene extends Phaser.Scene {
 
     this.time.delayedCall(3200, () => {
       this.feedButton.setInteractive({ useHandCursor: true });
-      this.enterAmbient('happy');
+      this.playEmotionThenAmbient('happy');
     });
   }
 
