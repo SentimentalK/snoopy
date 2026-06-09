@@ -29,11 +29,61 @@ const DOGHOUSE_ROOF_CENTER = {
 const PET_SCALE = 0.4;
 const ROOF_VISIBLE_BOTTOM_FRAME_Y = 719;
 const ROOF_SPRITE_Y_OFFSET = (MODERN_FRAME_HEIGHT - ROOF_VISIBLE_BOTTOM_FRAME_Y) * PET_SCALE;
-const ROOF_CENTER_LOWER_Y_OFFSET = 76;
+const ROOF_CENTER_X_OFFSET = -80;
+const ROOF_CENTER_Y_OFFSET = -32;
+const ROOF_CENTER_LOWER_Y_OFFSET = 36;
+const ROOF_AMBIENT_VISIBLE_WIDTH = 549;
+const ROOF_EDGE_LEFT_OUTWARD_OFFSET = 44;
+const ROOF_EDGE_RIGHT_INSET = 126;
+const ROOF_EDGE_Y_OFFSET = -48;
 const FOOD_DISPLAY_SIZE = { width: 230, height: 128 };
 const FEED_BUTTON_BASE_SCALE = 0.36;
 const FEED_BUTTON_MIN_SCALE = 0.22;
 const FEED_BUTTON_MARGIN = 12;
+
+type AmbientPlacement =
+  | { kind: 'home' }
+  | { kind: 'roof-random'; yOffset?: number }
+  | { kind: 'roof-center'; randomFlip?: boolean; xOffset: number; yOffset: number }
+  | { kind: 'roof-edge'; leftOutwardOffset: number; rightInset: number; yOffset: number };
+
+const DEFAULT_AMBIENT_PLACEMENT: AmbientPlacement = { kind: 'home' };
+
+const AMBIENT_GROUP_PLACEMENTS: Record<string, AmbientPlacement> = {
+  default: DEFAULT_AMBIENT_PLACEMENT,
+  roof: { kind: 'roof-random' },
+  'roof-center': {
+    kind: 'roof-center',
+    randomFlip: true,
+    xOffset: ROOF_CENTER_X_OFFSET,
+    yOffset: ROOF_CENTER_Y_OFFSET,
+  },
+  'roof-center-lower': {
+    kind: 'roof-center',
+    randomFlip: true,
+    xOffset: ROOF_CENTER_X_OFFSET,
+    yOffset: ROOF_CENTER_LOWER_Y_OFFSET,
+  },
+  'roof-edge': {
+    kind: 'roof-edge',
+    leftOutwardOffset: ROOF_EDGE_LEFT_OUTWARD_OFFSET,
+    rightInset: ROOF_EDGE_RIGHT_INSET,
+    yOffset: ROOF_EDGE_Y_OFFSET,
+  },
+};
+
+const createAmbientPlacementMap = () => {
+  const placementByKey = new Map<string, AmbientPlacement>();
+
+  for (const [group, keys] of Object.entries(modernAmbientAnimationGroups)) {
+    const placement = AMBIENT_GROUP_PLACEMENTS[group] ?? DEFAULT_AMBIENT_PLACEMENT;
+    for (const key of keys) {
+      placementByKey.set(key, placement);
+    }
+  }
+
+  return placementByKey;
+};
 
 export class PetScene extends Phaser.Scene {
   private background!: Phaser.GameObjects.Image;
@@ -41,14 +91,14 @@ export class PetScene extends Phaser.Scene {
   private food!: Phaser.GameObjects.Image;
   private feedButton!: Phaser.GameObjects.Sprite;
   private debugOverlay?: HTMLPreElement;
+  private debugControls?: HTMLDivElement;
   private cameraDebugInfo = '';
+  private currentAmbientKey?: string;
   private mode: RuntimeMode = 'ambient';
   private careStore = new PetCareStore();
   private careState!: PetCareState;
   private ambientTimer?: Phaser.Time.TimerEvent;
-  private roofAmbientKeys = new Set<string>(modernAmbientAnimationGroups.roof ?? []);
-  private roofCenterAmbientKeys = new Set<string>(modernAmbientAnimationGroups['roof-center'] ?? []);
-  private roofCenterLowerAmbientKeys = new Set<string>(modernAmbientAnimationGroups['roof-center-lower'] ?? []);
+  private ambientPlacementByKey = createAmbientPlacementMap();
 
   constructor() {
     super({ key: 'PetScene' });
@@ -61,7 +111,7 @@ export class PetScene extends Phaser.Scene {
     this.createPet();
     this.createFeedButton();
     this.configureCamera();
-    this.createDebugOverlayIfEnabled();
+    this.createDebugToolsIfEnabled();
     this.enterAmbient();
     this.scale.on('resize', this.handleResize, this);
   }
@@ -164,8 +214,12 @@ export class PetScene extends Phaser.Scene {
     this.feedButton.setPosition(screenX, screenY);
   }
 
-  private createDebugOverlayIfEnabled(): void {
-    if (!new URLSearchParams(window.location.search).has('debug')) return;
+  private isDebugEnabled(): boolean {
+    return new URLSearchParams(window.location.search).has('debug');
+  }
+
+  private createDebugToolsIfEnabled(): void {
+    if (!this.isDebugEnabled()) return;
     if (this.debugOverlay) return;
 
     const overlay = document.createElement('pre');
@@ -184,14 +238,50 @@ export class PetScene extends Phaser.Scene {
     overlay.style.whiteSpace = 'pre-wrap';
     document.body.appendChild(overlay);
 
+    const controls = document.createElement('div');
+    controls.style.position = 'fixed';
+    controls.style.right = '8px';
+    controls.style.top = '8px';
+    controls.style.zIndex = '10000';
+    controls.style.display = 'grid';
+    controls.style.gap = '6px';
+    controls.style.padding = '8px';
+    controls.style.borderRadius = '8px';
+    controls.style.background = 'rgba(255, 255, 255, 0.88)';
+    controls.style.boxShadow = '0 6px 18px rgba(0, 0, 0, 0.22)';
+    controls.style.font = '12px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+
+    const label = document.createElement('div');
+    label.dataset.debugAmbientLabel = 'true';
+    label.style.minWidth = '150px';
+    label.style.color = '#111';
+
+    const nextButton = document.createElement('button');
+    nextButton.type = 'button';
+    nextButton.textContent = 'Next animation';
+    nextButton.style.cursor = 'pointer';
+    nextButton.style.border = '1px solid rgba(0, 0, 0, 0.24)';
+    nextButton.style.borderRadius = '6px';
+    nextButton.style.padding = '6px 10px';
+    nextButton.style.background = '#fff';
+    nextButton.style.color = '#111';
+    nextButton.addEventListener('click', () => this.showNextDebugAmbient());
+
+    controls.append(label, nextButton);
+    document.body.appendChild(controls);
+
     this.debugOverlay = overlay;
+    this.debugControls = controls;
     this.time.addEvent({
       delay: 500,
       loop: true,
       callback: this.updateDebugOverlay,
       callbackScope: this,
     });
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => overlay.remove());
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      overlay.remove();
+      controls.remove();
+    });
     this.updateDebugOverlay();
   }
 
@@ -220,6 +310,7 @@ export class PetScene extends Phaser.Scene {
 
     this.debugOverlay.textContent = [
       'Snoopy debug',
+      `ambient: ${this.currentAmbientKey ?? 'none'} mode=${this.mode}`,
       `window: ${window.innerWidth} x ${window.innerHeight} dpr=${window.devicePixelRatio}`,
       `parent css: ${fmt(parentRect?.width ?? 0)} x ${fmt(parentRect?.height ?? 0)} @ ${fmt(parentRect?.left ?? 0)},${fmt(parentRect?.top ?? 0)}`,
       `canvas css: ${fmt(canvasRect.width)} x ${fmt(canvasRect.height)} @ ${fmt(canvasRect.left)},${fmt(canvasRect.top)}`,
@@ -230,6 +321,11 @@ export class PetScene extends Phaser.Scene {
       `bg game rect: ${fmt(bgGameRect.left)},${fmt(bgGameRect.top)} ${fmt(bgGameRect.width)} x ${fmt(bgGameRect.height)}`,
       `bg css rect: ${fmt(bgCssRect.left)},${fmt(bgCssRect.top)} ${fmt(bgCssRect.width)} x ${fmt(bgCssRect.height)}`,
     ].join('\n');
+
+    const ambientLabel = this.debugControls?.querySelector<HTMLElement>('[data-debug-ambient-label]');
+    if (ambientLabel) {
+      ambientLabel.textContent = `Ambient: ${this.currentAmbientKey ?? 'none'}`;
+    }
   }
 
   private getFeedLayout(): {
@@ -247,33 +343,58 @@ export class PetScene extends Phaser.Scene {
     this.food.setVisible(false);
 
     const key = preferredKey ?? this.pickAmbientKey();
+    this.currentAmbientKey = key;
     this.positionPetForAmbient(key);
     this.playPet(`ambient:${key}`);
     this.scheduleNextAmbient();
   }
 
+  private showNextDebugAmbient(): void {
+    if (this.mode !== 'ambient') return;
+
+    const ambientKeys = modernAmbientAnimations as readonly string[];
+    const currentIndex = this.currentAmbientKey
+      ? ambientKeys.indexOf(this.currentAmbientKey)
+      : -1;
+    const nextKey = ambientKeys[(currentIndex + 1 + ambientKeys.length) % ambientKeys.length];
+    if (!nextKey) return;
+
+    this.enterAmbient(nextKey);
+    this.updateDebugOverlay();
+  }
+
   private positionPetForAmbient(key: string): void {
-    if (this.roofCenterLowerAmbientKeys.has(key)) {
-      this.pet.setFlipX(Phaser.Math.Between(0, 1) === 1);
-      this.pet.setPosition(DOGHOUSE_ROOF_CENTER.x, this.getRoofSpriteY(ROOF_CENTER_LOWER_Y_OFFSET));
+    const placement = this.ambientPlacementByKey.get(key) ?? DEFAULT_AMBIENT_PLACEMENT;
+
+    if (placement.kind === 'roof-center') {
+      this.pet.setFlipX(placement.randomFlip ? Phaser.Math.Between(0, 1) === 1 : false);
+      this.pet.setPosition(
+        DOGHOUSE_ROOF_CENTER.x + placement.xOffset,
+        this.getRoofSpriteY(placement.yOffset),
+      );
       return;
     }
 
-    if (this.roofCenterAmbientKeys.has(key)) {
-      this.pet.setFlipX(Phaser.Math.Between(0, 1) === 1);
-      this.pet.setPosition(DOGHOUSE_ROOF_CENTER.x, this.getRoofSpriteY());
-      return;
-    }
-
-    if (this.roofAmbientKeys.has(key)) {
-      const safeHalfWidth = (MODERN_FRAME_WIDTH * PET_SCALE) / 2;
+    if (placement.kind === 'roof-edge') {
+      const safeHalfWidth = (ROOF_AMBIENT_VISIBLE_WIDTH * PET_SCALE) / 2;
       const useLeftSlot = Phaser.Math.Between(0, 1) === 1;
       const x = useLeftSlot
-        ? DOGHOUSE_ROOF_LINE.minX + safeHalfWidth
-        : DOGHOUSE_ROOF_LINE.maxX - safeHalfWidth;
+        ? DOGHOUSE_ROOF_LINE.minX + safeHalfWidth - placement.leftOutwardOffset
+        : DOGHOUSE_ROOF_LINE.maxX - safeHalfWidth - placement.rightInset;
 
       this.pet.setFlipX(useLeftSlot);
-      this.pet.setPosition(x, this.getRoofSpriteY());
+      this.pet.setPosition(x, this.getRoofSpriteY(placement.yOffset));
+      return;
+    }
+
+    if (placement.kind === 'roof-random') {
+      const safeHalfWidth = (ROOF_AMBIENT_VISIBLE_WIDTH * PET_SCALE) / 2;
+      const minX = DOGHOUSE_ROOF_LINE.minX + safeHalfWidth;
+      const maxX = DOGHOUSE_ROOF_LINE.maxX - safeHalfWidth;
+      const x = Phaser.Math.FloatBetween(minX, maxX);
+
+      this.pet.setFlipX(x < DOGHOUSE_ROOF_CENTER.x);
+      this.pet.setPosition(x, this.getRoofSpriteY(placement.yOffset ?? 0));
       return;
     }
 

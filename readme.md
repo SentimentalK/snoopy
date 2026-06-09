@@ -39,12 +39,15 @@ src/source/
     sunny.jpeg
 
   ambient/
-    drive.jpeg
     happy.jpeg
     reading.jpeg
     sad.jpeg
-    sleep.jpeg
-    sleepy.jpeg
+    roof-edge/
+      drive.jpeg
+    roof-center/
+      sleepy.jpeg
+    roof-center-lower/
+      sleep.jpeg
 
   actions/
     feed/
@@ -178,9 +181,15 @@ Future behavior should be added by moving or adding files to semantic folders, t
 
 Examples:
 
-- If `drive` becomes a paid/special action, move it out of `ambient/` and into an action folder.
+- If an idle animation needs a special roof placement, put it in an `ambient/` subfolder such as `roof-edge/`, `roof-center/`, or `roof-center-lower/`.
+- If an ambient behavior becomes a paid/special action, move it out of `ambient/` and into an action folder.
 - If weather is added, add `backgrounds/rainy.jpeg`, `backgrounds/night.jpeg`, etc.
 - If play is added, create `actions/play/` and put its animation/object assets there.
+
+### Debug Mode
+
+Open the app with `?debug` to show layout information and a debug-only `Next animation` button.
+The button advances through ambient animations in manifest order, which is useful for checking folder-based placement rules.
 
 ## Pet Care State
 

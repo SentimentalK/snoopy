@@ -12,9 +12,9 @@ export const modernAmbientAnimations = [
   "happy",
   "reading",
   "sad",
-  "drive",
   "sleepy",
-  "sleep"
+  "sleep",
+  "drive"
 ] as const;
 
 export const modernAmbientAnimationGroups = {
@@ -23,14 +23,14 @@ export const modernAmbientAnimationGroups = {
     "reading",
     "sad"
   ],
-  "roof": [
-    "drive"
-  ],
   "roof-center": [
     "sleepy"
   ],
   "roof-center-lower": [
     "sleep"
+  ],
+  "roof-edge": [
+    "drive"
   ]
 } as const;
 
