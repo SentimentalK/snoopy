@@ -151,10 +151,16 @@ Production builds process assets first:
 npm run build
 ```
 
-Docker dev runs assets in a one-shot service and waits for it to finish before starting Vite:
+Docker dev now reuses the checked-in processed assets by default. Rebuild them only when the source art changes:
 
 ```bash
+npm run docker:assets
 npm run docker:dev
+```
+
+Production Docker still builds the production image explicitly:
+
+```bash
 npm run docker:prod
 ```
 

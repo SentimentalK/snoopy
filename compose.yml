@@ -1,5 +1,7 @@
 services:
   assets:
+    profiles:
+      - assets
     build:
       context: .
       target: dev
@@ -13,9 +15,6 @@ services:
       context: .
       target: dev
     command: npm run dev -- --host 0.0.0.0
-    depends_on:
-      assets:
-        condition: service_completed_successfully
     ports:
       - "5173:5173"
     volumes:
