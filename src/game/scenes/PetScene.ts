@@ -12,8 +12,6 @@ type RuntimeMode = 'ambient' | 'feeding' | 'touching';
 const WORLD_WIDTH = 2752;
 const WORLD_HEIGHT = 1536;
 const IMAGE_CENTER = { x: WORLD_WIDTH / 2, y: WORLD_HEIGHT / 2 };
-const MOBILE_CAMERA_CROP = 1.18;
-const DESKTOP_DOGHOUSE_BIAS = 0.25;
 const SOURCE_TO_WORLD_SCALE = 2;
 const toWorld = ({ x, y }: { x: number; y: number }) => ({
   x: x * SOURCE_TO_WORLD_SCALE,
@@ -28,7 +26,6 @@ const DOGHOUSE_ROOF_CENTER = {
   x: (DOGHOUSE_ROOF_LINE.minX + DOGHOUSE_ROOF_LINE.maxX) / 2,
   y: DOGHOUSE_ROOF_LINE.y,
 };
-const DOGHOUSE_CENTER = { x: DOGHOUSE_ROOF_CENTER.x, y: 900 };
 const PET_SCALE = 0.4;
 const ROOF_VISIBLE_BOTTOM_FRAME_Y = 719;
 const ROOF_SPRITE_Y_OFFSET = (MODERN_FRAME_HEIGHT - ROOF_VISIBLE_BOTTOM_FRAME_Y) * PET_SCALE;
@@ -37,8 +34,6 @@ const FOOD_DISPLAY_SIZE = { width: 230, height: 128 };
 const FEED_BUTTON_BASE_SCALE = 0.36;
 const FEED_BUTTON_MIN_SCALE = 0.22;
 const FEED_BUTTON_MARGIN = 12;
-const FEED_BUTTON_VISIBLE_RIGHT_OFFSET = 310;
-const FEED_BUTTON_VISIBLE_BOTTOM_OFFSET = 220;
 
 export class PetScene extends Phaser.Scene {
   private background!: Phaser.GameObjects.Image;
@@ -134,48 +129,20 @@ export class PetScene extends Phaser.Scene {
     const camera = this.cameras.main;
     const viewportWidth = this.scale.gameSize.width;
     const viewportHeight = this.scale.gameSize.height;
-    const viewportAspect = viewportWidth / viewportHeight;
-    const coverZoom = Math.max(viewportWidth / WORLD_WIDTH, viewportHeight / WORLD_HEIGHT);
-    const isMobileLike = viewportAspect < 1 || viewportWidth <= 768 || viewportHeight <= 700;
-
-    let cameraZoom: number;
-    let focusX: number;
-    let focusY: number;
-    let cameraMode: string;
-
-    if (isMobileLike) {
-      cameraMode = 'mobile-stage';
-      cameraZoom = Math.min(1, coverZoom * MOBILE_CAMERA_CROP);
-      focusX = DOGHOUSE_CENTER.x;
-      focusY = DOGHOUSE_CENTER.y;
-    } else {
-      cameraMode = 'desktop-cover';
-      cameraZoom = Math.min(1, coverZoom);
-      focusX = Phaser.Math.Linear(IMAGE_CENTER.x, DOGHOUSE_CENTER.x, DESKTOP_DOGHOUSE_BIAS);
-      focusY = Phaser.Math.Linear(IMAGE_CENTER.y, DOGHOUSE_CENTER.y, DESKTOP_DOGHOUSE_BIAS);
-    }
+    const cameraZoom = 1;
+    const visibleWorldWidth = viewportWidth / cameraZoom;
+    const visibleWorldHeight = viewportHeight / cameraZoom;
 
     camera.setViewport(0, 0, viewportWidth, viewportHeight);
     camera.setZoom(cameraZoom);
-    const visibleWorldWidth = viewportWidth / cameraZoom;
-    const visibleWorldHeight = viewportHeight / cameraZoom;
     camera.setScroll(
-      this.getCameraScroll(focusX, visibleWorldWidth, WORLD_WIDTH),
-      this.getCameraScroll(focusY, visibleWorldHeight, WORLD_HEIGHT),
+      IMAGE_CENTER.x - visibleWorldWidth / 2,
+      IMAGE_CENTER.y - visibleWorldHeight / 2,
     );
     this.cameraDebugInfo =
-      `${cameraMode} cover=${coverZoom.toFixed(3)} ` +
-      `focus=${Math.round(focusX)},${Math.round(focusY)}`;
+      `fixed-center focus=${Math.round(IMAGE_CENTER.x)},${Math.round(IMAGE_CENTER.y)}`;
     this.positionFeedButton();
     this.updateDebugOverlay();
-  }
-
-  private getCameraScroll(focus: number, visibleSize: number, worldSize: number): number {
-    if (visibleSize >= worldSize) {
-      return (worldSize - visibleSize) / 2;
-    }
-
-    return Phaser.Math.Clamp(focus - visibleSize / 2, 0, worldSize - visibleSize);
   }
 
   private positionFeedButton(): void {
@@ -183,19 +150,18 @@ export class PetScene extends Phaser.Scene {
 
     const viewportWidth = this.scale.width;
     const viewportHeight = this.scale.height;
-    const cameraZoom = this.cameras.main.zoom || 1;
     const screenScale = Phaser.Math.Clamp(
       Math.min(viewportWidth, viewportHeight) / 1500,
       FEED_BUTTON_MIN_SCALE,
       FEED_BUTTON_BASE_SCALE,
     );
-    const screenX =
-      viewportWidth - (FEED_BUTTON_VISIBLE_RIGHT_OFFSET * screenScale) - FEED_BUTTON_MARGIN;
-    const screenY =
-      viewportHeight - (FEED_BUTTON_VISIBLE_BOTTOM_OFFSET * screenScale) - FEED_BUTTON_MARGIN;
+    const buttonScreenWidth = MODERN_FRAME_WIDTH * screenScale;
+    const buttonScreenHeight = MODERN_FRAME_HEIGHT * screenScale;
+    const screenX = viewportWidth - buttonScreenWidth / 2 - FEED_BUTTON_MARGIN;
+    const screenY = viewportHeight - buttonScreenHeight / 2 - FEED_BUTTON_MARGIN;
 
-    this.feedButton.setScale(screenScale / cameraZoom);
-    this.feedButton.setPosition(screenX / cameraZoom, screenY / cameraZoom);
+    this.feedButton.setScale(screenScale);
+    this.feedButton.setPosition(screenX, screenY);
   }
 
   private createDebugOverlayIfEnabled(): void {
@@ -270,27 +236,9 @@ export class PetScene extends Phaser.Scene {
     food: { x: number; y: number };
     petTarget: { x: number; y: number };
   } {
-    const camera = this.cameras.main;
-    if (camera.width >= 900) {
-      return {
-        food: FOOD_POSITION,
-        petTarget: PET_FEED_TARGET,
-      };
-    }
-
-    const visibleWorldWidth = camera.width / camera.zoom;
-    const visibleWorldHeight = camera.height / camera.zoom;
-    const food = {
-      x: camera.scrollX + visibleWorldWidth * 0.62,
-      y: camera.scrollY + visibleWorldHeight * 0.8,
-    };
-
     return {
-      food,
-      petTarget: {
-        x: food.x - 170,
-        y: food.y,
-      },
+      food: FOOD_POSITION,
+      petTarget: PET_FEED_TARGET,
     };
   }
 
