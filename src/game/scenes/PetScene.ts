@@ -37,6 +37,10 @@ const ROOF_AMBIENT_VISIBLE_WIDTH = 549;
 const ROOF_EDGE_LEFT_OUTWARD_OFFSET = 44;
 const ROOF_EDGE_RIGHT_INSET = 126;
 const ROOF_EDGE_Y_OFFSET = -48;
+const MOTION_VISIBLE_WIDTH = 640;
+const MOTION_Y = toWorld({ x: 0, y: 690 }).y;
+const MOTION_RUN_DURATION = 5600;
+const MOTION_EXIT_PAUSE = 900;
 const FOOD_DISPLAY_SIZE = { width: 230, height: 128 };
 const FEED_BUTTON_BASE_SCALE = 0.36;
 const FEED_BUTTON_MIN_SCALE = 0.22;
@@ -44,6 +48,7 @@ const FEED_BUTTON_MARGIN = 12;
 
 type AmbientPlacement =
   | { kind: 'home' }
+  | { kind: 'motion' }
   | { kind: 'roof-random'; yOffset?: number }
   | { kind: 'roof-center'; randomFlip?: boolean; xOffset: number; yOffset: number }
   | { kind: 'roof-edge'; leftOutwardOffset: number; rightInset: number; yOffset: number };
@@ -52,6 +57,7 @@ const DEFAULT_AMBIENT_PLACEMENT: AmbientPlacement = { kind: 'home' };
 
 const AMBIENT_GROUP_PLACEMENTS: Record<string, AmbientPlacement> = {
   default: DEFAULT_AMBIENT_PLACEMENT,
+  motion: { kind: 'motion' },
   roof: { kind: 'roof-random' },
   'roof-center': {
     kind: 'roof-center',
@@ -100,6 +106,8 @@ export class PetScene extends Phaser.Scene {
   private careState!: PetCareState;
   private ambientTimer?: Phaser.Time.TimerEvent;
   private emotionTimer?: Phaser.Time.TimerEvent;
+  private motionExitTimer?: Phaser.Time.TimerEvent;
+  private motionTween?: Phaser.Tweens.Tween;
   private ambientPlacementByKey = createAmbientPlacementMap();
 
   constructor() {
@@ -348,6 +356,7 @@ export class PetScene extends Phaser.Scene {
   private enterAmbient(preferredKey?: string): void {
     this.mode = 'ambient';
     this.food.setVisible(false);
+    this.stopMotionAmbient();
     this.emotionTimer?.remove(false);
     this.careState = this.careStore.applyDecay(this.careState);
 
@@ -360,6 +369,10 @@ export class PetScene extends Phaser.Scene {
     this.currentAmbientKey = key;
     this.positionPetForAmbient(key);
     this.playPet(`ambient:${key}`);
+    if (this.ambientPlacementByKey.get(key)?.kind === 'motion') {
+      this.startMotionAmbient();
+      return;
+    }
     this.scheduleNextAmbient();
   }
 
@@ -374,6 +387,7 @@ export class PetScene extends Phaser.Scene {
     this.food.setVisible(false);
     this.ambientTimer?.remove(false);
     this.emotionTimer?.remove(false);
+    this.stopMotionAmbient();
     this.currentAmbientKey = `emotion:${key}`;
     this.playPet(`emotion:${key}`);
     this.updateDebugOverlay();
@@ -405,6 +419,11 @@ export class PetScene extends Phaser.Scene {
 
   private positionPetForAmbient(key: string): void {
     const placement = this.ambientPlacementByKey.get(key) ?? DEFAULT_AMBIENT_PLACEMENT;
+
+    if (placement.kind === 'motion') {
+      this.positionPetForMotionAmbient();
+      return;
+    }
 
     if (placement.kind === 'roof-center') {
       this.pet.setFlipX(placement.randomFlip ? Phaser.Math.Between(0, 1) === 1 : false);
@@ -442,6 +461,78 @@ export class PetScene extends Phaser.Scene {
     this.pet.setPosition(PET_HOME.x, PET_HOME.y);
   }
 
+  private getVisibleBackgroundWorldBounds(): { left: number; right: number; top: number; bottom: number } {
+    const camera = this.cameras.main;
+    return {
+      left: Phaser.Math.Clamp(camera.scrollX, 0, WORLD_WIDTH),
+      right: Phaser.Math.Clamp(camera.scrollX + camera.width / camera.zoom, 0, WORLD_WIDTH),
+      top: Phaser.Math.Clamp(camera.scrollY, 0, WORLD_HEIGHT),
+      bottom: Phaser.Math.Clamp(camera.scrollY + camera.height / camera.zoom, 0, WORLD_HEIGHT),
+    };
+  }
+
+  private positionPetForMotionAmbient(): void {
+    const bounds = this.getVisibleBackgroundWorldBounds();
+    const safeHalfWidth = (MOTION_VISIBLE_WIDTH * PET_SCALE) / 2;
+    const runLeft = Phaser.Math.Between(0, 1) === 1;
+    const startX = runLeft
+      ? bounds.right - safeHalfWidth
+      : bounds.left + safeHalfWidth;
+
+    this.pet.setVisible(true);
+    this.pet.setFlipX(runLeft);
+    this.pet.setPosition(startX, Phaser.Math.Clamp(MOTION_Y, bounds.top, bounds.bottom));
+  }
+
+  private startMotionAmbient(): void {
+    const bounds = this.getVisibleBackgroundWorldBounds();
+    const safeHalfWidth = (MOTION_VISIBLE_WIDTH * PET_SCALE) / 2;
+    const runLeft = this.pet.flipX;
+    const targetX = runLeft
+      ? bounds.left - safeHalfWidth
+      : bounds.right + safeHalfWidth;
+    const hideAtX = runLeft
+      ? bounds.left - safeHalfWidth * 0.35
+      : bounds.right + safeHalfWidth * 0.35;
+
+    this.ambientTimer?.remove(false);
+    this.motionTween?.stop();
+    this.motionExitTimer?.remove(false);
+    this.motionTween = this.tweens.add({
+      targets: this.pet,
+      x: targetX,
+      duration: MOTION_RUN_DURATION,
+      ease: 'Linear',
+      onUpdate: () => {
+        const hasLeftVisibleBackground = runLeft
+          ? this.pet.x <= hideAtX
+          : this.pet.x >= hideAtX;
+        if (hasLeftVisibleBackground) {
+          this.pet.setVisible(false);
+        }
+      },
+      onComplete: () => {
+        this.motionTween = undefined;
+        this.motionExitTimer = this.time.delayedCall(MOTION_EXIT_PAUSE, () => {
+          this.pet.setVisible(true);
+          if (this.mode === 'ambient') {
+            this.enterAmbient();
+          }
+        });
+      },
+    });
+  }
+
+  private stopMotionAmbient(): void {
+    this.motionTween?.stop();
+    this.motionTween = undefined;
+    this.motionExitTimer?.remove(false);
+    this.motionExitTimer = undefined;
+    if (this.pet) {
+      this.pet.setVisible(true);
+    }
+  }
+
   private getRoofSpriteY(extraOffset = 0): number {
     return DOGHOUSE_ROOF_LINE.y + ROOF_SPRITE_Y_OFFSET + extraOffset;
   }
@@ -463,6 +554,7 @@ export class PetScene extends Phaser.Scene {
     if (this.mode !== 'ambient') return;
 
     this.mode = 'feeding';
+    this.stopMotionAmbient();
     this.ambientTimer?.remove(false);
     this.feedButton.disableInteractive();
     const feedLayout = this.getFeedLayout();
@@ -503,6 +595,7 @@ export class PetScene extends Phaser.Scene {
     if (this.mode !== 'ambient') return;
 
     this.mode = 'touching';
+    this.stopMotionAmbient();
     this.ambientTimer?.remove(false);
     this.feedButton.disableInteractive();
     this.playPet('action:touch');
