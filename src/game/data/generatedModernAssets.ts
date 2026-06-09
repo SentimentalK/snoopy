@@ -9,22 +9,34 @@ export const modernBackgrounds = {
 } as const;
 
 export const modernAmbientAnimations = [
+  "brush-teeth",
+  "draw",
   "happy",
   "reading",
   "sad",
+  "think",
+  "football",
   "sleepy",
+  "tired",
   "sleep",
   "drive"
 ] as const;
 
 export const modernAmbientAnimationGroups = {
   "default": [
+    "brush-teeth",
+    "draw",
     "happy",
     "reading",
-    "sad"
+    "sad",
+    "think"
+  ],
+  "motion": [
+    "football"
   ],
   "roof-center": [
-    "sleepy"
+    "sleepy",
+    "tired"
   ],
   "roof-center-lower": [
     "sleep"
@@ -32,6 +44,20 @@ export const modernAmbientAnimationGroups = {
   "roof-edge": [
     "drive"
   ]
+} as const;
+
+export const modernActionGroups = {
+  "dance": {
+    "dance": "dance"
+  },
+  "feed": {
+    "eat": "eat",
+    "food": "food",
+    "run": "run"
+  },
+  "touch": {
+    "touch": "touch"
+  }
 } as const;
 
 export const modernFeedAssets = {

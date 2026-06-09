@@ -20,7 +20,7 @@ const toWorld = ({ x, y }: { x: number; y: number }) => ({
 
 const PET_HOME = toWorld({ x: 550, y: 690 });
 const PET_FEED_TARGET = toWorld({ x: 780, y: 690 });
-const FOOD_POSITION = toWorld({ x: 965, y: 685 });
+const FOOD_POSITION = toWorld({ x: 820, y: 685 });
 const DOGHOUSE_ROOF_LINE = { minX: 1230, maxX: 1700, y: 690 };
 const DOGHOUSE_ROOF_CENTER = {
   x: (DOGHOUSE_ROOF_LINE.minX + DOGHOUSE_ROOF_LINE.maxX) / 2,

@@ -2,22 +2,30 @@ import Phaser from 'phaser';
 import { gameConfig } from './game/config';
 import './style.css';
 
-// Create the Phaser game instance
-const _game = new Phaser.Game(gameConfig);
+let game = new Phaser.Game(gameConfig);
 
-// Handle visibility change — pause/resume game
-document.addEventListener('visibilitychange', () => {
+const handleVisibilityChange = () => {
   if (document.hidden) {
-    _game.scene.scenes.forEach(scene => {
+    game.scene.scenes.forEach((scene) => {
       if (scene.scene.isActive()) {
         scene.scene.pause();
       }
     });
-  } else {
-    _game.scene.scenes.forEach(scene => {
-      if (scene.scene.isPaused()) {
-        scene.scene.resume();
-      }
-    });
+    return;
   }
-});
+
+  game.scene.scenes.forEach((scene) => {
+    if (scene.scene.isPaused()) {
+      scene.scene.resume();
+    }
+  });
+};
+
+document.addEventListener('visibilitychange', handleVisibilityChange);
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
+    game.destroy(true);
+  });
+}

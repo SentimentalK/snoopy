@@ -371,8 +371,20 @@ const normalizeGridFrames = async (png, options = {}) => {
     const fittedWidth = Math.min(targetContentWidth, FRAME_WIDTH - 8);
     const fittedHeight = Math.min(targetContentHeight, FRAME_HEIGHT - 8);
     const reclineScale = fittedWidth / bodyWidth;
-    const targetWidth = Math.max(1, Math.round(options.recline ? contentWidth * reclineScale : fittedWidth));
-    const targetHeight = Math.max(1, Math.round(options.recline ? contentHeight * reclineScale : fittedHeight));
+    const targetWidth = Math.max(1, Math.round(
+      options.preserveSourceScale
+        ? contentWidth
+        : options.recline
+          ? contentWidth * reclineScale
+          : fittedWidth,
+    ));
+    const targetHeight = Math.max(1, Math.round(
+      options.preserveSourceScale
+        ? contentHeight
+        : options.recline
+          ? contentHeight * reclineScale
+          : fittedHeight,
+    ));
     const resized = await resizeVisibleFrame(png, bounds, targetWidth, targetHeight);
     const targetX = frameX + Math.round((FRAME_WIDTH - targetWidth) / 2);
     const baselineOffset = bodyBaseline === null
@@ -441,9 +453,15 @@ const processObject = async (sourcePath, outputPath, mode = 'white') => {
 
 const processButton = async (sourcePath, outputPath) => {
   const png = await readImage(sourcePath);
-  if (png.width !== FRAME_WIDTH * 2 || png.height !== FRAME_HEIGHT) {
-    throw new Error(`${sourcePath} must be ${FRAME_WIDTH * 2}x${FRAME_HEIGHT}`);
+  const isTwoFrameButton = png.width === FRAME_WIDTH * 2 && png.height === FRAME_HEIGHT;
+  const isGridSheet = png.width === FRAME_WIDTH * GRID_COLUMNS && png.height === FRAME_HEIGHT * GRID_ROWS;
+  if (!isTwoFrameButton && !isGridSheet) {
+    throw new Error(
+      `${sourcePath} must be ${FRAME_WIDTH * 2}x${FRAME_HEIGHT} or ${FRAME_WIDTH * GRID_COLUMNS}x${FRAME_HEIGHT * GRID_ROWS}`,
+    );
   }
+
+  const button = createTransparentPng(FRAME_WIDTH * 2, FRAME_HEIGHT);
 
   for (let frame = 0; frame < 2; frame += 1) {
     const frameBounds = {
@@ -453,9 +471,20 @@ const processButton = async (sourcePath, outputPath) => {
       height: FRAME_HEIGHT,
     };
     removeBackground(png, frameBounds, 'checker');
+    copyFrameImage(
+      await resizeVisibleFrame(png, {
+        minX: frameBounds.x,
+        minY: frameBounds.y,
+        maxX: frameBounds.x + FRAME_WIDTH - 1,
+        maxY: frameBounds.y + FRAME_HEIGHT - 1,
+      }, FRAME_WIDTH, FRAME_HEIGHT),
+      button,
+      frame * FRAME_WIDTH,
+      0,
+    );
   }
 
-  writePng(outputPath, png);
+  writePng(outputPath, button);
 };
 
 const listJpegs = (dir) => {
@@ -487,7 +516,20 @@ const listAmbientJpegs = (dir) => {
   return [...rootFiles, ...groupedFiles];
 };
 
-const writeManifest = ({ ambientKeys, ambientGroups, feedKeys, touchKeys }) => {
+const listGroupedJpegs = (dir) => {
+  if (!fs.existsSync(dir)) return [];
+
+  return fs.readdirSync(dir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .flatMap((entry) => listJpegs(path.join(dir, entry.name)).map((filePath) => ({
+      filePath,
+      group: entry.name,
+      key: toKey(filePath),
+    })));
+};
+
+const writeManifest = ({ ambientKeys, ambientGroups, actionGroups }) => {
   const manifest = `export const MODERN_GAME_WIDTH = ${GAME_WIDTH};
 export const MODERN_GAME_HEIGHT = ${GAME_HEIGHT};
 export const MODERN_FRAME_WIDTH = ${FRAME_WIDTH};
@@ -502,14 +544,16 @@ export const modernAmbientAnimations = ${JSON.stringify(ambientKeys, null, 2)} a
 
 export const modernAmbientAnimationGroups = ${JSON.stringify(ambientGroups, null, 2)} as const;
 
+export const modernActionGroups = ${JSON.stringify(actionGroups, null, 2)} as const;
+
 export const modernFeedAssets = {
-  run: ${JSON.stringify(feedKeys.run ?? null)},
-  eat: ${JSON.stringify(feedKeys.eat ?? null)},
-  food: ${JSON.stringify(feedKeys.food ?? null)},
+  run: ${JSON.stringify(actionGroups.feed?.run ?? null)},
+  eat: ${JSON.stringify(actionGroups.feed?.eat ?? null)},
+  food: ${JSON.stringify(actionGroups.feed?.food ?? null)},
 } as const;
 
 export const modernTouchAssets = {
-  touch: ${JSON.stringify(touchKeys.touch ?? null)},
+  touch: ${JSON.stringify(actionGroups.touch?.touch ?? null)},
 } as const;
 
 export const modernUiAssets = {
@@ -538,26 +582,20 @@ for (const { filePath, group, key } of listAmbientJpegs(path.join(SOURCE_DIR, 'a
   ambientGroups[group].push(key);
   await processGridSheet(filePath, path.join(OUTPUT_DIR, `ambient/${key}.png`), {
     key,
+    preserveSourceScale: group === 'motion',
     recline: key === 'sleep',
   });
 }
 
-const feedKeys = {};
-for (const filePath of listJpegs(path.join(SOURCE_DIR, 'actions/feed'))) {
-  const key = toKey(filePath);
-  feedKeys[key] = key;
-  if (key === 'food') {
-    await processObject(filePath, path.join(OUTPUT_DIR, 'actions/feed/food.png'), 'white');
+const actionGroups = {};
+for (const { filePath, group, key } of listGroupedJpegs(path.join(SOURCE_DIR, 'actions'))) {
+  actionGroups[group] ??= {};
+  actionGroups[group][key] = key;
+  if (group === 'feed' && key === 'food') {
+    await processObject(filePath, path.join(OUTPUT_DIR, `actions/${group}/${key}.png`), 'white');
   } else {
-    await processGridSheet(filePath, path.join(OUTPUT_DIR, `actions/feed/${key}.png`), { key });
+    await processGridSheet(filePath, path.join(OUTPUT_DIR, `actions/${group}/${key}.png`), { key });
   }
-}
-
-const touchKeys = {};
-for (const filePath of listJpegs(path.join(SOURCE_DIR, 'actions/touch'))) {
-  const key = toKey(filePath);
-  touchKeys[key] = key;
-  await processGridSheet(filePath, path.join(OUTPUT_DIR, `actions/touch/${key}.png`), { key });
 }
 
 await processButton(
@@ -565,7 +603,7 @@ await processButton(
   path.join(OUTPUT_DIR, 'ui/feed_button.png'),
 );
 
-writeManifest({ ambientKeys, ambientGroups, feedKeys, touchKeys });
+writeManifest({ ambientKeys, ambientGroups, actionGroups });
 
 console.log(`Processed modern assets to ${path.relative(ROOT, OUTPUT_DIR)}`);
 console.log(`Generated ${path.relative(ROOT, GENERATED_MANIFEST)}`);

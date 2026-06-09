@@ -3,6 +3,7 @@ import {
   MODERN_FRAME_HEIGHT,
   MODERN_FRAME_WIDTH,
   MODERN_GRID_FRAMES,
+  modernActionGroups,
   modernAmbientAnimations,
   modernBackgrounds,
   modernFeedAssets,
@@ -11,6 +12,7 @@ import {
 } from '../data/generatedModernAssets';
 
 const ambientPath = (key: string) => `/assets/ambient/${key}.png`;
+const actionPath = (group: string, key: string) => `/assets/actions/${group}/${key}.png`;
 const feedPath = (key: string) => `/assets/actions/feed/${key}.png`;
 const touchPath = (key: string) => `/assets/actions/touch/${key}.png`;
 
@@ -27,6 +29,16 @@ export class BootScene extends Phaser.Scene {
         frameWidth: MODERN_FRAME_WIDTH,
         frameHeight: MODERN_FRAME_HEIGHT,
       });
+    }
+
+    for (const [group, assets] of Object.entries(modernActionGroups)) {
+      for (const key of Object.keys(assets)) {
+        if (group === 'feed' && key === 'food') continue;
+        this.load.spritesheet(`action:${group}:${key}`, actionPath(group, key), {
+          frameWidth: MODERN_FRAME_WIDTH,
+          frameHeight: MODERN_FRAME_HEIGHT,
+        });
+      }
     }
 
     if (modernFeedAssets.run) {
@@ -63,6 +75,13 @@ export class BootScene extends Phaser.Scene {
   create(): void {
     for (const key of modernAmbientAnimations) {
       this.createLoop(`ambient:${key}`, 5);
+    }
+
+    for (const [group, assets] of Object.entries(modernActionGroups)) {
+      for (const key of Object.keys(assets)) {
+        if (group === 'feed' && key === 'food') continue;
+        this.createLoop(`action:${group}:${key}`, 6);
+      }
     }
 
     this.createLoop('action:feed:run', 10);
