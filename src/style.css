@@ -1,7 +1,5 @@
 :root {
-  --page-bg: #7cc8ee;
-  --game-aspect-width: 1376;
-  --game-aspect-height: 768;
+  --page-bg: #000000;
 }
 
 * {
@@ -33,11 +31,11 @@ body {
 }
 
 #game-container {
-  width: max(100vw, calc(100vh * var(--game-aspect-width) / var(--game-aspect-height)));
-  aspect-ratio: var(--game-aspect-width) / var(--game-aspect-height);
+  width: 100vw;
+  height: 100vh;
   flex: 0 0 auto;
   overflow: hidden;
-  background: #fff;
+  background: var(--page-bg);
 }
 
 #game-container canvas {

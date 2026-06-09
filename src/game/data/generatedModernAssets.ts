@@ -9,13 +9,30 @@ export const modernBackgrounds = {
 } as const;
 
 export const modernAmbientAnimations = [
-  "drive",
   "happy",
   "reading",
   "sad",
-  "sleep",
-  "sleepy"
+  "drive",
+  "sleepy",
+  "sleep"
 ] as const;
+
+export const modernAmbientAnimationGroups = {
+  "default": [
+    "happy",
+    "reading",
+    "sad"
+  ],
+  "roof": [
+    "drive"
+  ],
+  "roof-center": [
+    "sleepy"
+  ],
+  "roof-center-lower": [
+    "sleep"
+  ]
+} as const;
 
 export const modernFeedAssets = {
   run: "run",

@@ -466,7 +466,28 @@ const listJpegs = (dir) => {
     .map((name) => path.join(dir, name));
 };
 
-const writeManifest = ({ ambientKeys, feedKeys, touchKeys }) => {
+const listAmbientJpegs = (dir) => {
+  if (!fs.existsSync(dir)) return [];
+
+  const rootFiles = listJpegs(dir).map((filePath) => ({
+    filePath,
+    group: 'default',
+    key: toKey(filePath),
+  }));
+
+  const groupedFiles = fs.readdirSync(dir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .flatMap((entry) => listJpegs(path.join(dir, entry.name)).map((filePath) => ({
+      filePath,
+      group: entry.name,
+      key: toKey(filePath),
+    })));
+
+  return [...rootFiles, ...groupedFiles];
+};
+
+const writeManifest = ({ ambientKeys, ambientGroups, feedKeys, touchKeys }) => {
   const manifest = `export const MODERN_GAME_WIDTH = ${GAME_WIDTH};
 export const MODERN_GAME_HEIGHT = ${GAME_HEIGHT};
 export const MODERN_FRAME_WIDTH = ${FRAME_WIDTH};
@@ -478,6 +499,8 @@ export const modernBackgrounds = {
 } as const;
 
 export const modernAmbientAnimations = ${JSON.stringify(ambientKeys, null, 2)} as const;
+
+export const modernAmbientAnimationGroups = ${JSON.stringify(ambientGroups, null, 2)} as const;
 
 export const modernFeedAssets = {
   run: ${JSON.stringify(feedKeys.run ?? null)},
@@ -505,15 +528,14 @@ for (const ownedDir of ['actions', 'ambient', 'backgrounds', 'ui']) {
 
 const backgroundSource = path.join(SOURCE_DIR, 'backgrounds/sunny.jpeg');
 ensureDir(path.join(OUTPUT_DIR, 'backgrounds'));
-await sharp(backgroundSource)
-  .resize(GAME_WIDTH, GAME_HEIGHT, { fit: 'cover' })
-  .jpeg({ quality: 92 })
-  .toFile(path.join(OUTPUT_DIR, 'backgrounds/sunny.jpeg'));
+fs.copyFileSync(backgroundSource, path.join(OUTPUT_DIR, 'backgrounds/sunny.jpeg'));
 
 const ambientKeys = [];
-for (const filePath of listJpegs(path.join(SOURCE_DIR, 'ambient'))) {
-  const key = toKey(filePath);
+const ambientGroups = {};
+for (const { filePath, group, key } of listAmbientJpegs(path.join(SOURCE_DIR, 'ambient'))) {
   ambientKeys.push(key);
+  ambientGroups[group] ??= [];
+  ambientGroups[group].push(key);
   await processGridSheet(filePath, path.join(OUTPUT_DIR, `ambient/${key}.png`), {
     key,
     recline: key === 'sleep',
@@ -543,7 +565,7 @@ await processButton(
   path.join(OUTPUT_DIR, 'ui/feed_button.png'),
 );
 
-writeManifest({ ambientKeys, feedKeys, touchKeys });
+writeManifest({ ambientKeys, ambientGroups, feedKeys, touchKeys });
 
 console.log(`Processed modern assets to ${path.relative(ROOT, OUTPUT_DIR)}`);
 console.log(`Generated ${path.relative(ROOT, GENERATED_MANIFEST)}`);
