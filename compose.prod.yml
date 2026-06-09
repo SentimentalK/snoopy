@@ -1,0 +1,20 @@
+services:
+  snoopy:
+    image: ${SNOOPY_IMAGE:-ghcr.io/sentimentalk/snoopy:latest}
+    container_name: snoopy
+    restart: unless-stopped
+    labels:
+      caddy: ${SNOOPY_DOMAIN:?Set SNOOPY_DOMAIN}
+      caddy.reverse_proxy: "{{upstreams 80}}"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      - master-gateway
+
+networks:
+  master-gateway:
+    external: true

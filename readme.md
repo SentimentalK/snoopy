@@ -183,6 +183,57 @@ Production Docker still builds the production image explicitly:
 npm run docker:prod
 ```
 
+## Production Deploy
+
+`docker-compose.prod.yml` is for a server that already runs `caddy-docker-proxy`
+on the external Docker network `master-gateway`.
+
+Create DNS first:
+
+```text
+snoopy.example.com -> server IP
+```
+
+Then deploy the container:
+
+```bash
+export SNOOPY_DOMAIN=snoopy.example.com
+export SNOOPY_IMAGE=ghcr.io/sentimentalk/snoopy:latest
+docker compose -f docker-compose.prod.yml up -d
+```
+
+After `master` is pushed, GitHub Actions publishes:
+
+```text
+ghcr.io/sentimentalk/snoopy:latest
+ghcr.io/sentimentalk/snoopy:<commit-sha>
+```
+
+If watchtower is running on the server, it can pull the new `latest` image and
+restart the container automatically. Manual update is:
+
+```bash
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
+```
+
+The production compose file does not publish ports. It joins `master-gateway`
+and exposes the app to Caddy through labels:
+
+```yaml
+caddy: ${SNOOPY_DOMAIN}
+caddy.reverse_proxy: "{{upstreams 80}}"
+```
+
+If the gateway is a manual Caddyfile instead of `caddy-docker-proxy`, attach the
+container to the same Docker network and add:
+
+```caddyfile
+snoopy.example.com {
+  reverse_proxy snoopy:80
+}
+```
+
 ## Extensible Asset Categories
 
 The runtime uses folder semantics:
